@@ -8,6 +8,8 @@
   --block-bg: #111827;
   --cell-bg: #ffffff;
   --cell-bg-active: #fff7ed;
+  --font-display: 'Fraunces Variable', ui-serif, Georgia, serif;
+  --font-body: 'Literata Variable', ui-serif, Georgia, serif;
 }
 
 html,
@@ -19,17 +21,14 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family:
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    Segoe UI,
-    Roboto,
-    Helvetica,
-    Arial,
-    "Noto Sans",
-    "Apple Color Emoji",
-    "Segoe UI Emoji";
+  font-family: var(--font-body);
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
 }
 
 .page {
@@ -68,8 +67,9 @@ body {
 }
 
 .title {
+  font-family: var(--font-display);
   font-size: 20px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .subtle {
@@ -93,6 +93,7 @@ body {
 .panelHeader {
   padding: 12px;
   border-bottom: 1px solid var(--border);
+  font-family: var(--font-display);
   font-weight: 700;
 }
 
@@ -121,8 +122,9 @@ body {
   grid-template-columns: 34px 1fr;
   gap: 8px;
   align-items: start;
-  padding: 6px 0;
+  padding: 8px 8px;
   border-top: 1px solid #f3f4f6;
+  border-left: 3px solid transparent;
 }
 
 .clueItem:first-child {
@@ -130,7 +132,8 @@ body {
 }
 
 .clueNum {
-  font-weight: 800;
+  font-family: var(--font-display);
+  font-weight: 700;
   color: #111827;
 }
 
@@ -142,9 +145,7 @@ body {
 
 .clueActive {
   background: #fffbeb;
-  border-left: 3px solid #f59e0b;
-  padding-left: 9px;
-  margin-left: -9px;
+  border-left-color: #f59e0b;
 }
 
 .gridWrap {
@@ -184,8 +185,10 @@ body {
   border: none;
   outline: none;
   background: transparent;
+  font-family: var(--font-display);
+  font-variation-settings: 'opsz' 40;
   font-size: 15px;
-  font-weight: 800;
+  font-weight: 700;
   caret-color: transparent;
   color: #111827;
 }
@@ -194,8 +197,9 @@ body {
   position: absolute;
   top: 2px;
   left: 3px;
+  font-family: var(--font-display);
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 700;
   color: #111827;
   pointer-events: none;
   z-index: 2;
@@ -274,8 +278,9 @@ body {
 .clueEdit {
   display: grid;
   gap: 6px;
-  padding: 8px 0;
+  padding: 8px 8px;
   border-top: 1px solid #f3f4f6;
+  border-left: 3px solid transparent;
   cursor: pointer;
 }
 
@@ -322,7 +327,8 @@ body {
 }
 
 .puzzleTitle {
-  font-weight: 800;
+  font-family: var(--font-display);
+  font-weight: 700;
 }
 
 .puzzleActions {
@@ -447,8 +453,9 @@ body {
 
 .modalTitle {
   margin: 0;
+  font-family: var(--font-display);
   font-size: 18px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .modalClose {

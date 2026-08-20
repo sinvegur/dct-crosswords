@@ -57,7 +57,8 @@ function blankGrid(): string[] {
 
 /**
  * Starting layouts only — users can add/remove black squares in the editor.
- * Patterned starts use 180° rotational symmetry and are tuned to feel distinct.
+ * Patterned starts use 180° rotational symmetry only (seeds are not row-palindromes,
+ * so grids are not left-right / top-bottom mirror symmetric).
  */
 export const TEMPLATES_15: Template15[] = [
   {
@@ -65,16 +66,16 @@ export const TEMPLATES_15: Template15[] = [
     name: 'Classic',
     description: 'Balanced all-purpose grid with medium-length entries.',
     defaultSymmetry: false,
-    // ~36 blacks · mostly 4–7 letter slots · traditional staggered look
+    // ~36 blacks · medium entries · 180° rotation only
     blocks: fromHalfSpec([
-      '....#.....#....',
-      '....#.....#....',
-      '...............',
-      '...#.......#...',
-      '..#....#....#..',
-      '.#....#.#....#.',
-      '#....#...#....#',
-      '....#.....#....',
+      '......#...##...',
+      '......#........',
+      '......#........',
+      '###.....##.....',
+      '#.......#......',
+      '....#.....##...',
+      '......#....#...',
+      '.....#.........',
     ]),
   },
   {
@@ -82,16 +83,16 @@ export const TEMPLATES_15: Template15[] = [
     name: 'Easy Fill',
     description: 'More blocks and shorter entries, easier to construct manually.',
     defaultSymmetry: false,
-    // ~48 blacks · denser segmentation · shorter slots · no full-row 15s
+    // ~46 blacks · denser / shorter entries · 180° rotation only
     blocks: fromHalfSpec([
-      '...#...#...#...',
-      '......#........',
-      '...#...#...#...',
-      '......#........',
-      '..#.#.....#.#..',
-      '..#.#.....#.#..',
-      '.#...#.#.#...#.',
-      '#.#.#.....#.#.#',
+      '.....##...#....',
+      '.....#....#....',
+      '.....#.........',
+      '#...#...##.....',
+      '......##...#...',
+      '......##...#...',
+      '.....#......###',
+      '#...##.........',
     ]),
   },
   {
@@ -99,16 +100,16 @@ export const TEMPLATES_15: Template15[] = [
     name: 'Open',
     description: 'Fewer blocks and longer entries, more challenging to fill.',
     defaultSymmetry: false,
-    // ~22 blacks · large white regions · many long entries
+    // ~24 blacks · sparser / longer entries · 180° rotation only
     blocks: fromHalfSpec([
       '.....#.....#...',
-      '...............',
-      '...#.......#...',
-      '...............',
-      '..#.........#..',
-      '.....#...#.....',
-      '.#...........#.',
-      '...#.......#...',
+      '.....#.........',
+      '.....#.........',
+      '......#........',
+      '.........#.....',
+      '...#.....#....#',
+      '...#......#....',
+      '....#..........',
     ]),
   },
   {
