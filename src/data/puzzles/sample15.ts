@@ -72,6 +72,8 @@ const clues = {
 
 export const samplePuzzle15: Puzzle15 = {
   id: 'sample-15-border',
+  slug: 'sample-15-border',
+  status: 'draft',
   title: 'Sample 15x15 (Turkish character test)',
   solutionGrid,
   clues,

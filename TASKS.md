@@ -32,7 +32,7 @@ Scope: `CrosswordPlayer.tsx`, `PuzzleDesigner.tsx` only.
 
 ---
 
-## T015 — [TODO] Migrate puzzle storage to Supabase + draft/publish support
+## T015 — [READY FOR REVIEW] Migrate puzzle storage to Supabase + draft/publish support
 
 **Prerequisite — do this first, before writing any code:** ask the user to confirm they've run `supabase/002_add_draft_status.sql` in their Supabase project's SQL Editor (adds a `status` column to `puzzles` and splits read access so drafts are only visible to the authenticated creator, published puzzles are public). Don't start until confirmed.
 
@@ -66,6 +66,8 @@ Scope: `CrosswordPlayer.tsx`, `PuzzleDesigner.tsx` only.
 **6. Dashboard (`HomePage` in `App.tsx`) — show status per puzzle.** Add a small badge/label next to each puzzle's title indicating "Draft" vs "Published" (reuse existing small-text/pill styling patterns already in the app, e.g. something in the spirit of `.subtle` or a small colored label — don't invent a whole new visual language for one badge).
 
 Scope: `src/crossword/types.ts`, `src/lib/storage.ts`, `src/App.tsx`, `src/crossword/PuzzleDesigner.tsx`. Don't touch `CrosswordPlayer.tsx` or the Supabase auth/login code from T013 — unrelated to this change.
+
+**Implementation notes:** Storage is async Supabase CRUD with Turkish slugify + collision retry. Designer: Save draft (always) / Publish (`canPublish`) for new/drafts; single Save changes for already-published. App: list loading/errors, Play loads by `getPuzzleBySlug`, dashboard status badges. Tiny `.puzzleStatus` styles + sample puzzle type fields updated so TS still typechecks.
 
 ---
 

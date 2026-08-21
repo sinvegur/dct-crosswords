@@ -67,7 +67,7 @@ type Props = {
   initial?: Puzzle15;
   /** Starting layout when creating a new puzzle (from the modal). */
   startingTemplate?: Template15;
-  onSaved: (puzzle: Puzzle15) => void;
+  onSaved: (puzzle: Puzzle15) => void | Promise<void>;
   onCancel: () => void;
 };
 
@@ -259,28 +259,37 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
     return missing;
   }, [computed, cluesAcross, cluesDown]);
 
-  const canSave =
+  const canPublish =
     Boolean(title.trim()) &&
     computed != null &&
     incompleteEntries.length === 0 &&
     missingClues.length === 0 &&
     computed.allEntries.length > 0;
 
-  const handleSave = () => {
-    if (!canSave || !computed) return;
+  const alreadyPublished = initial?.status === 'published';
+  const [saving, setSaving] = useState(false);
+
+  const buildPuzzle = (status: 'draft' | 'published'): Puzzle15 | null => {
+    if (status === 'published' && !canPublish) return null;
 
     const cleanGrid = solutionGrid.map((row) =>
       row
         .split('')
-        .map((ch) => (ch === '#' ? '#' : ch.trim() === '' ? '?' : ch))
+        .map((ch) => {
+          if (ch === '#') return '#';
+          if (ch.trim() === '') return status === 'published' ? '?' : ' ';
+          return ch;
+        })
         .join(''),
     );
 
-    if (cleanGrid.some((r) => r.includes('?'))) return;
+    if (status === 'published' && cleanGrid.some((r) => r.includes('?'))) return null;
 
-    const puzzle: Puzzle15 = {
-      id: initial?.id ?? `puzzle-${Date.now()}`,
-      title: title.trim(),
+    return {
+      id: initial?.id ?? '',
+      slug: initial?.slug ?? '',
+      status,
+      title: title.trim() || 'Untitled',
       solutionGrid: cleanGrid,
       clues: { across: cluesAcross, down: cluesDown },
       meta: {
@@ -288,7 +297,17 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
         createdAtISO: initial?.meta?.createdAtISO ?? new Date().toISOString(),
       },
     };
-    onSaved(puzzle);
+  };
+
+  const handleSave = async (status: 'draft' | 'published') => {
+    const puzzle = buildPuzzle(status);
+    if (!puzzle) return;
+    setSaving(true);
+    try {
+      await onSaved(puzzle);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -394,19 +413,45 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
             <div className="title" style={{ fontSize: 16 }}>
               Design
             </div>
-            <div className="subtle">
+            <div className="subtle designHint">
               {editMode === 'block'
                 ? 'Block mode: click cells to toggle white ↔ black.'
-                : 'Letter mode: type answers (Turkish uppercase). Toggle direction with SPACE.'}
+                : 'Toggle direction with SPACE.'}
             </div>
           </div>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button type="button" className="btn" onClick={onCancel}>
+            <button type="button" className="btn" onClick={onCancel} disabled={saving}>
               Cancel
             </button>
-            <button type="button" className="btn btnPrimary" disabled={!canSave} onClick={handleSave}>
-              Save
-            </button>
+            {alreadyPublished ? (
+              <button
+                type="button"
+                className="btn btnPrimary"
+                disabled={!canPublish || saving}
+                onClick={() => void handleSave('published')}
+              >
+                {saving ? 'Saving…' : 'Save changes'}
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={saving}
+                  onClick={() => void handleSave('draft')}
+                >
+                  {saving ? 'Saving…' : 'Save draft'}
+                </button>
+                <button
+                  type="button"
+                  className="btn btnPrimary"
+                  disabled={!canPublish || saving}
+                  onClick={() => void handleSave('published')}
+                >
+                  {saving ? 'Saving…' : 'Publish'}
+                </button>
+              </>
+            )}
           </div>
         </div>
 
@@ -479,7 +524,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
                   {!isBlock && numAtCell != null ? (
                     <div className="cellNumber">{numAtCell}</div>
                   ) : null}
-                  {!isBlock && editMode === 'letter' ? (
+                  {!isBlock ? (
                     <input
                       ref={(el) => {
                         inputsRef.current[cellIndex] = el;
@@ -489,9 +534,15 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
                       inputMode="text"
                       autoCorrect="off"
                       spellCheck={false}
-                      onFocus={() => pickCell(cellIndex)}
+                      tabIndex={editMode === 'block' ? -1 : 0}
+                      readOnly={editMode === 'block'}
+                      onFocus={() => {
+                        if (editMode === 'block') return;
+                        pickCell(cellIndex);
+                      }}
                       onChange={(e) => onCellChange(cellIndex, e.target.value)}
                       onKeyDown={(e) => {
+                        if (editMode === 'block') return;
                         if (e.code === 'Space') {
                           e.preventDefault();
                           toggleDirection();

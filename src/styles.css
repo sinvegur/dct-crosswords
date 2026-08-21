@@ -224,6 +224,11 @@ textarea {
   border-top: 1px solid var(--border);
 }
 
+.designHint {
+  min-height: 2.5em;
+  line-height: 1.25;
+}
+
 .btn {
   border: 1px solid var(--border);
   background: #ffffff;
@@ -306,6 +311,7 @@ textarea {
 .statusBar {
   margin-top: 12px;
   padding: 0 4px;
+  min-height: 1.4em;
 }
 
 .emptyState {
@@ -368,6 +374,37 @@ textarea {
 .puzzleTitle {
   font-family: var(--font-display);
   font-weight: 700;
+}
+
+.puzzleTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.puzzleStatus {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  background: #f9fafb;
+}
+
+.puzzleStatus.isPublished {
+  color: #065f46;
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+}
+
+.puzzleStatus.isDraft {
+  color: #92400e;
+  border-color: #fde68a;
+  background: #fffbeb;
 }
 
 .puzzleActions {
