@@ -92,6 +92,7 @@ function AppShell() {
       await savePuzzle(puzzle);
       await refresh();
       setStartingTemplate(undefined);
+      setGridModalOpen(false);
       navigate('/');
     } catch (err) {
       alert(`Could not save puzzle: ${errorMessage(err)}`);
@@ -271,14 +272,16 @@ function HomePage({
                 </div>
               </div>
               <div className="puzzleActions">
-                <button
-                  type="button"
-                  className="btn btnPrimary"
-                  onClick={() => navigate(`/p/${p.slug}`)}
-                  disabled={!p.slug}
-                >
-                  Play
-                </button>
+                {p.status === 'published' ? (
+                  <button
+                    type="button"
+                    className="btn btnPrimary"
+                    onClick={() => navigate(`/p/${p.slug}`)}
+                    disabled={!p.slug}
+                  >
+                    Play
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   className="btn"
