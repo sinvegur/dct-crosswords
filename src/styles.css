@@ -224,6 +224,11 @@ textarea {
   border-top: 1px solid var(--border);
 }
 
+.designHint {
+  min-height: 2.5em;
+  line-height: 1.25;
+}
+
 .btn {
   border: 1px solid var(--border);
   background: #ffffff;
@@ -306,6 +311,7 @@ textarea {
 .statusBar {
   margin-top: 12px;
   padding: 0 4px;
+  min-height: 1.4em;
 }
 
 .emptyState {

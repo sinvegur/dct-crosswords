@@ -413,7 +413,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
             <div className="title" style={{ fontSize: 16 }}>
               Design
             </div>
-            <div className="subtle">
+            <div className="subtle designHint">
               {editMode === 'block'
                 ? 'Block mode: click cells to toggle white ↔ black.'
                 : 'Toggle direction with SPACE.'}
@@ -524,7 +524,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
                   {!isBlock && numAtCell != null ? (
                     <div className="cellNumber">{numAtCell}</div>
                   ) : null}
-                  {!isBlock && editMode === 'letter' ? (
+                  {!isBlock ? (
                     <input
                       ref={(el) => {
                         inputsRef.current[cellIndex] = el;
@@ -534,9 +534,15 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
                       inputMode="text"
                       autoCorrect="off"
                       spellCheck={false}
-                      onFocus={() => pickCell(cellIndex)}
+                      tabIndex={editMode === 'block' ? -1 : 0}
+                      readOnly={editMode === 'block'}
+                      onFocus={() => {
+                        if (editMode === 'block') return;
+                        pickCell(cellIndex);
+                      }}
                       onChange={(e) => onCellChange(cellIndex, e.target.value)}
                       onKeyDown={(e) => {
+                        if (editMode === 'block') return;
                         if (e.code === 'Space') {
                           e.preventDefault();
                           toggleDirection();
