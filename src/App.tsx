@@ -59,31 +59,33 @@ function AppShell() {
           />
         </button>
         <div className="nav">
-          <button
-            type="button"
-            className={`btn ${isHome ? 'btnPrimary' : ''}`}
-            onClick={goHome}
-          >
-            Puzzles
-          </button>
-          <button
-            type="button"
-            className={`btn ${isNewDesign ? 'btnPrimary' : ''}`}
-            onClick={openNewPuzzleModal}
-          >
-            New puzzle
-          </button>
           {session ? (
-            <button
-              type="button"
-              className="btn"
-              onClick={async () => {
-                await signOut();
-                navigate('/login');
-              }}
-            >
-              Sign out
-            </button>
+            <>
+              <button
+                type="button"
+                className={`btn ${isHome ? 'btnPrimary' : ''}`}
+                onClick={goHome}
+              >
+                Puzzles
+              </button>
+              <button
+                type="button"
+                className={`btn ${isNewDesign ? 'btnPrimary' : ''}`}
+                onClick={openNewPuzzleModal}
+              >
+                New puzzle
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={async () => {
+                  await signOut();
+                  navigate('/login');
+                }}
+              >
+                Sign out
+              </button>
+            </>
           ) : null}
         </div>
       </div>
@@ -92,11 +94,13 @@ function AppShell() {
         <Route
           path="/"
           element={
-            <HomePage
-              puzzles={puzzles}
-              onRefresh={refresh}
-              onNewPuzzle={openNewPuzzleModal}
-            />
+            <RequireAuth>
+              <HomePage
+                puzzles={puzzles}
+                onRefresh={refresh}
+                onNewPuzzle={openNewPuzzleModal}
+              />
+            </RequireAuth>
           }
         />
         <Route path="/login" element={<CreatorLogin />} />
