@@ -416,7 +416,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
             <div className="subtle">
               {editMode === 'block'
                 ? 'Block mode: click cells to toggle white ↔ black.'
-                : 'Letter mode: type answers (Turkish uppercase). Toggle direction with SPACE.'}
+                : 'Toggle direction with SPACE.'}
             </div>
           </div>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
