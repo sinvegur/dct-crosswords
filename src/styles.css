@@ -154,14 +154,15 @@ textarea {
 
 .grid {
   width: 100%;
+  aspect-ratio: 1 / 1;
   display: grid;
   grid-template-columns: repeat(15, 1fr);
+  grid-template-rows: repeat(15, 1fr);
   gap: 2px;
   background: transparent;
 }
 
 .cell {
-  aspect-ratio: 1 / 1;
   border: 1px solid var(--cell-border);
   background: var(--cell-bg);
   display: flex;

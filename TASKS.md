@@ -12,17 +12,23 @@ Task queue for handing work from Claude (planning/review) to Cursor (implementat
 
 ---
 
-## T004 — [TODO] Shuffle button: randomize block layout in the designer
+## T006 — [TODO] Consistent icon-based design language for the editor toolbar
 
-**Do this task after T002 is done and merged — not before.** (T002 touches some of the same CSS files this task will touch; keep diffs from overlapping.)
+The `.editorToolbar` row in `src/crossword/PuzzleDesigner.tsx` currently mixes three unrelated widget styles for what are conceptually similar "grid setting" controls: Letter/Block mode is two separate tab-like `.btn` elements, "180° block symmetry" is a pill switch (`.symmetryToggle`/`.symmetrySwitch`), and Shuffle (once T004 lands) is a plain `.btn`. Redesign these three as one consistent, icon-led control family.
 
-Add a "Shuffle" button to the puzzle designer's block-editing toolbar (`src/crossword/PuzzleDesigner.tsx`, the `.editorToolbar` row that currently has the Letter/Block mode toggle and the "180° block symmetry" switch). Clicking it replaces the current block layout with a different one, randomly picked from the existing curated templates in `src/data/templates.ts` (`TEMPLATES_15`, excluding `blank`).
+**Icon library:** add `lucide-react` as a dependency and use its icons — don't hand-roll SVGs, don't mix in a second icon set.
 
-**Behavior:**
-1. Button picks a random template from `TEMPLATES_15.filter(t => t.id !== 'blank')`, excluding whichever template produced the *current* layout if that's knowable (avoid immediately reshuffling to the same pattern twice in a row — simplest approach: exclude the previously-shuffled template id from the random pick pool, tracked in local component state).
-2. Applying the new layout means replacing `rows` with `templateToEmptySolution(newTemplate)` (same helper `startingTemplate` already uses on initial mount) — this clears all letters (cells become blocks or empty), and should also **reset `cluesAcross`/`cluesDown` to `{}`**, not just the grid. Reason: entry numbers are derived from block positions via `computeEntries15`, so a new block layout reassigns numbers — old clues keyed by old numbers would silently attach to the wrong entries otherwise. This applies whether or not the confirmation dialog (below) was shown.
-3. **Confirm before destroying progress.** Before applying a shuffle, check whether the user has any unsaved progress: any letter cell is non-empty (`rows` contains a letter, not just spaces/`#`), OR any entry in `cluesAcross`/`cluesDown` has non-empty trimmed text. If either is true, show a confirmation modal first ("Shuffling will replace the grid and clear any letters and clues you've entered. Continue?" / Cancel / Shuffle) and only proceed if confirmed. If there's no progress yet (fresh blank-ish grid), shuffle immediately with no modal.
-4. Use a **styled modal matching the app's existing modal CSS** (`.modalOverlay`, `.modal`, `.modalHeader`, `.modalTitle`, `.modalClose`, `.modalFooter`, `.btn`/`.btnPrimary` — see `StartingGridModal.tsx` for the pattern to follow) — not the browser's native `confirm()`. `App.tsx` currently uses native `confirm()` for delete-puzzle; don't copy that pattern here, it doesn't match the app's design.
-5. Shuffle should work regardless of current `editMode` (letter or block) — clicking it while in letter mode should still work (it's about grid structure, not the current view).
+**Labeling:** every control keeps an icon **and** a short visible text label (not icon-only/tooltip-only) — some of these aren't self-explanatory from an icon alone (180° rotational symmetry especially has no obvious single icon), so label text stays.
 
-Keep the change contained to `PuzzleDesigner.tsx` plus any new modal component file needed — don't touch unrelated parts of the designer.
+**Design (implement all three, contained to the toolbar area — don't restyle unrelated buttons elsewhere in the app in this pass):**
+
+1. **Letter / Block mode** — keep as a two-option segmented control (mutually exclusive selection is the correct interaction, don't change that), but restyle so it reads as one joined pill/segmented group rather than two separate buttons sitting side by side: shared outer border/border-radius, a divider or background-fill between the two segments, only the active segment gets the filled/dark treatment (same visual language `.btnPrimary` already uses for "selected"). Suggested icons: `PencilLine` (or similar) for Letter mode, `Grid2x2` (or similar) for Block mode — pick whatever reads clearly at small size, use your judgment on the exact icon name within Lucide's set.
+2. **180° block symmetry** — replace the pill switch with a toggle **button** matching the same visual family as the mode segments (an icon + label button that shows a clear pressed/active state when on — e.g. filled/dark background when active, outlined when inactive — consistent with how the mode segment shows "selected"). Suggested icon: `FlipHorizontal2` or `RotateCcw`-style icon that reads as "mirrored/symmetric," whichever fits best. Keep it a single click-to-toggle control (not a drag switch) — use `aria-pressed` for accessibility since it's no longer a native checkbox-style switch.
+3. **Shuffle** — icon + label button in the same visual family as the others (same height, border-radius, padding, icon size as the mode segments and symmetry toggle) so all three read as one row of consistent controls. Suggested icon: `Shuffle`.
+
+**Consistency requirements across all three:**
+- Same height, icon size, icon-to-label gap, border-radius, and font (label uses the existing body font, not the display font) across all three controls.
+- Same "active/on" visual treatment reused across mode-selection and the symmetry toggle (don't invent two different ways of showing "this is currently selected/on").
+- Preserve all existing behavior exactly (mode switching, symmetry toggling and its interaction with block-click mirroring, shuffle's confirm-before-destroy flow from T004) — this is a visual/structural restyle only, not a behavior change.
+
+Keep the diff contained to `PuzzleDesigner.tsx`, `styles.css` (new/changed rules for these controls only), and `package.json`/lockfile for the new dependency. Don't touch other buttons or components in this pass.

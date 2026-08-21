@@ -1,7 +1,14 @@
 import { useMemo, useRef, useState } from 'react';
 import { SIZE_15, computeEntries15, type Direction } from './engine';
 import type { Puzzle15 } from './types';
-import { mirrorPos, templateToEmptySolution, type Template15 } from '@/data/templates';
+import {
+  TEMPLATES_15,
+  mirrorPos,
+  templateToEmptySolution,
+  type StartingGridId,
+  type Template15,
+} from '@/data/templates';
+import { ShuffleConfirmModal } from '@/components/ShuffleConfirmModal';
 
 function idxOf(row: number, col: number) {
   return row * SIZE_15 + col;
@@ -23,6 +30,32 @@ function gridFromRows(rows: string[]): string[] {
 
 function rowsToFlat(rows: string[]): string[] {
   return rows.flatMap((r) => r.split(''));
+}
+
+function hasDesignerProgress(
+  rows: string[],
+  cluesAcross: Record<number, string>,
+  cluesDown: Record<number, string>,
+) {
+  for (const row of rows) {
+    for (const ch of row) {
+      if (ch !== '#' && ch.trim() !== '') return true;
+    }
+  }
+  for (const text of Object.values(cluesAcross)) {
+    if (text.trim()) return true;
+  }
+  for (const text of Object.values(cluesDown)) {
+    if (text.trim()) return true;
+  }
+  return false;
+}
+
+function pickShuffleTemplate(excludeId: StartingGridId | null): Template15 {
+  const patterned = TEMPLATES_15.filter((t) => t.id !== 'blank');
+  const pool = patterned.filter((t) => t.id !== excludeId);
+  const choices = pool.length > 0 ? pool : patterned;
+  return choices[Math.floor(Math.random() * choices.length)]!;
 }
 
 type EditMode = 'letter' | 'block';
@@ -49,6 +82,10 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
   const [symmetry, setSymmetry] = useState(
     () => startingTemplate?.defaultSymmetry ?? false,
   );
+  const [lastShuffledTemplateId, setLastShuffledTemplateId] = useState<StartingGridId | null>(
+    () => (startingTemplate && startingTemplate.id !== 'blank' ? startingTemplate.id : null),
+  );
+  const [shuffleConfirmOpen, setShuffleConfirmOpen] = useState(false);
 
   const [activeDirection, setActiveDirection] = useState<Direction>('across');
   const [activeEntryNumber, setActiveEntryNumber] = useState<number | null>(null);
@@ -62,6 +99,25 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
   );
 
   const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
+
+  const applyShuffle = () => {
+    const nextTemplate = pickShuffleTemplate(lastShuffledTemplateId);
+    setRows(templateToEmptySolution(nextTemplate));
+    setCluesAcross({});
+    setCluesDown({});
+    setLastShuffledTemplateId(nextTemplate.id);
+    setActiveEntryNumber(null);
+    setActiveCellIndex(null);
+    setShuffleConfirmOpen(false);
+  };
+
+  const requestShuffle = () => {
+    if (hasDesignerProgress(rows, cluesAcross, cluesDown)) {
+      setShuffleConfirmOpen(true);
+      return;
+    }
+    applyShuffle();
+  };
 
   const solutionGrid = useMemo(() => gridFromRows(rows), [rows]);
   const computed = useMemo(() => {
@@ -378,6 +434,10 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
             <span className="symmetrySwitch" aria-hidden />
             <span className="symmetryLabel">180° block symmetry</span>
           </label>
+
+          <button type="button" className="btn" onClick={requestShuffle}>
+            Shuffle
+          </button>
         </div>
 
         <div className="gridWrap">
@@ -447,6 +507,12 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
           </div>
         </div>
       </div>
+
+      <ShuffleConfirmModal
+        open={shuffleConfirmOpen}
+        onClose={() => setShuffleConfirmOpen(false)}
+        onConfirm={applyShuffle}
+      />
     </div>
   );
 }
