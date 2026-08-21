@@ -12,7 +12,7 @@ Task queue for handing work from Claude (planning/review) to Cursor (implementat
 
 ---
 
-## T009 — [TODO] Guarantee clearance between the corner number and the main letter
+## T009 — [READY FOR REVIEW] Guarantee clearance between the corner number and the main letter
 
 Since T007 made grid letters much bigger (15px → 28px, to dominate the cell NYT-style), the corner number (`.cellNumber`, positioned `top: 2px; left: 3px`) has lost the clearance it used to have — tall/wide glyphs (e.g. `U`, or Turkish capitals with diacritics like `Ğ`/`Ş`/`Ü`) can now visually touch or merge with the number in the top-left corner.
 
@@ -26,4 +26,6 @@ Since T007 made grid letters much bigger (15px → 28px, to dominate the cell NY
 **Verify explicitly, not just the reported case:** check clearance with a range of glyphs in the top-left area of an entry — wide letters (`M`, `W`), tall Turkish capitals with diacritics (`Ğ`, `Ş`, `Ü`, `Ö`), and the originally-reported `U` — across a couple of different cell sizes (resize the browser window) to confirm it holds generally, not just at one window size.
 
 Scope: `.cellNumber` (and its interaction with `.cell`/`.cellActive` background) in `src/styles.css` only.
+
+**Implementation notes:** `.cellNumber` now has `background: inherit` (covers idle `--cell-bg` and active `--cell-bg-active`), `padding: 0 2px`, `border-radius: 2px`, inset `3px`/`4px`. Checked U/M/W/Ğ/Ş/Ü/Ö at ~45px and ~32px cells — chip matches both cell states and keeps the number off the letter ink.
 
