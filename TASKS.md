@@ -12,25 +12,9 @@ Task queue for handing work from Claude (planning/review) to Cursor (implementat
 
 ---
 
-## T010 — [READY FOR REVIEW] Fix inconsistent backspace/delete in the grid
+## T011 — [BLOCKED, do not start yet] Remove the "Toggle (SPACE)" / "Direction (SPACE)" buttons; consolidate into small instructional text
 
-**Root cause, already diagnosed — implement this fix, don't re-diagnose from scratch:**
-
-In both `CrosswordPlayer.tsx` (the cell `<input>`'s `onKeyDown`, ~line 322-336) and `PuzzleDesigner.tsx` (`onCellChange` + its `<input>`'s `onKeyDown`, ~line 227 / 494), Backspace is only handled via the browser's native `onChange` event — which only fires when the input's value actually changes. That works fine when the current cell has a letter (clearing it fires `onChange`, which correctly clears and moves back one cell — that part is already correct, don't change it). But **pressing Backspace on an already-empty cell fires no `onChange` event at all**, since there's nothing to clear — so it's currently a complete no-op: no move, no clear. That's why deleting a word by holding/repeating Backspace feels random: the moment focus lands on a cell that's already blank (which happens as soon as you've cleared one), further Backspace presses silently do nothing until you manually click.
-
-**Required fix, both files:** add explicit handling in each grid `<input>`'s `onKeyDown` for `e.key === 'Backspace'` when the **current cell is already empty**: `e.preventDefault()`, find the previous cell in the active entry (reuse existing helpers — `moveToPrevInActiveEntry`-equivalent logic already exists for finding the previous index), **clear that previous cell's letter** (not just move focus to it — both clear AND move), and focus it. This makes repeated/held Backspace chain smoothly backward through an entire word, clearing one letter per press, same as the letter-typing direction already works forward. The existing "clear current cell via onChange, then move back" path for a filled cell stays as-is — this is an additional branch for the empty-cell case, not a replacement.
-
-**Verify:** type a full word, then hold/repeatedly press Backspace from the end — confirm it deletes the whole word smoothly, one letter per press, without ever needing an extra click or press to "unstick." Test in both the puzzle designer (Letter mode) and the player. Also confirm Backspace at the very first cell of an entry does nothing beyond that boundary (no crash, no wraparound to another entry).
-
-Scope: `CrosswordPlayer.tsx` and `PuzzleDesigner.tsx` only — the `onKeyDown` handlers on the grid cell inputs (and any small helper you need to add/reuse for "clear + move to previous cell").
-
-**Implementation notes:** Empty-cell Backspace now clears the previous letter in the active entry and focuses it (both files). Filled-cell path still uses onChange. First cell of an entry is a no-op (no wrap).
-
----
-
-## T011 — [BLOCKED, do not start yet — will flip to TODO once T010 is done] Remove the "Toggle (SPACE)" / "Direction (SPACE)" buttons; consolidate into small instructional text
-
-**Blocked on T010** — both tasks touch the same input `onKeyDown` handlers; keep them in separate review passes. Wait for T010 to be marked done before starting this one.
+**T010 is done, but this is deprioritized behind the T012/T013 backend work the user just started — wait for explicit go-ahead before picking this up, even once it's otherwise unblocked.**
 
 Both `CrosswordPlayer.tsx` (button labeled "Toggle (SPACE)", in the ACROSS `directionHeader`) and `PuzzleDesigner.tsx` (button labeled "Direction (SPACE)", same location) have a button that just toggles direction — redundant with the SPACE key, which already does the same thing. Remove both buttons entirely and replace with small instructional text.
 
@@ -45,3 +29,36 @@ Both `CrosswordPlayer.tsx` (button labeled "Toggle (SPACE)", in the ACROSS `dire
 **4. Compensate for the removed button — don't regress touch/mouse-only users.** Right now SPACE and the button are the *only* two ways to toggle direction; without a keyboard, a user sitting on a cell that starts both an across and down entry has no way to switch to the other direction without the button (clicking the same already-active cell currently just re-confirms the same direction, doesn't toggle). Fix: make clicking an **already-selected/active** cell toggle direction (if that cell belongs to both an across and a down entry) — standard crossword-app pattern. Implement this in both `CrosswordPlayer.tsx` (`handlePickCell`) and `PuzzleDesigner.tsx` (`pickCell`): if the clicked cell is already the active cell, and it has an entry in the *other* direction available, toggle to that direction instead of re-selecting the same one.
 
 Scope: `CrosswordPlayer.tsx`, `PuzzleDesigner.tsx` only.
+
+---
+
+## T012 — [READY FOR REVIEW] Add URL routing (react-router-dom)
+
+Starting a backend migration (Supabase — see T013, blocked behind this one). First prerequisite: the app currently has **no URL routing at all** — `App.tsx` is one screen switching between `home`/`design`/`play` via a `useState<Mode>`, so there's no way to represent "a link to puzzle X" as a real, shareable URL. That's required for the stated goal (solvers access puzzles via dedicated links).
+
+**1.** Add `react-router-dom`. Set up routes replacing the current `mode` state:
+   - `/` — the puzzles list (currently `mode === 'home'`)
+   - `/design` — new puzzle (currently the "New puzzle" flow via `StartingGridModal` → designer)
+   - `/design/:id` — edit an existing puzzle (currently `mode === 'design'` with `editPuzzle` set)
+   - `/p/:slug` — play a puzzle by its shareable slug (currently `mode === 'play'` with `playId` — note the switch from an internal `id`/`playId` lookup to a public-facing `slug`; puzzles don't have a `slug` field yet, that's part of T013's data model, not this task — for now just add the route shape and pass `slug` as a param, wiring it to actual data comes in T013)
+
+**2.** Preserve all existing behavior/navigation exactly (Puzzles list, New puzzle modal flow, Edit, Delete, Play, Cancel/Save from the designer) — this is a routing restructure, not a feature or behavior change. `localStorage`-backed `src/lib/storage.ts` stays as-is for this task; don't touch it yet.
+
+**3.** Keep the diff to `App.tsx`, `package.json`/lockfile, and routing wiring only. Don't touch `CrosswordPlayer.tsx`, `PuzzleDesigner.tsx`, or `storage.ts` internals beyond what's needed to receive params instead of local state (e.g. reading `:id`/`:slug` from the route instead of a `playId`/`editPuzzle` state variable).
+
+**Implementation notes:** `BrowserRouter` + routes live in `App.tsx` (`/`, `/design`, `/design/:id`, `/p/:slug`). Play temporarily resolves `:slug` against puzzle `id` so existing localStorage puzzles still open until T013 adds a real slug. New-puzzle flow still uses `StartingGridModal` on `/design`.
+
+---
+
+## T013 — [BLOCKED, do not start yet — will flip to TODO once T012 is done] Supabase client + creator auth gate
+
+**Blocked on T012.** Also blocked on the user having (a) added `.env` with `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`, and (b) run `supabase/schema.sql` in their Supabase project's SQL Editor, and (c) manually created the one creator account in Supabase Auth — ask if unsure these are done before starting.
+
+**Scope of this task — plumbing and auth only, not the puzzle data migration yet (that's a separate follow-up task once this lands):**
+
+1. Add `@supabase/supabase-js`. Create `src/lib/supabaseClient.ts` exporting a configured client, reading `import.meta.env.VITE_SUPABASE_URL` and `import.meta.env.VITE_SUPABASE_ANON_KEY` (Vite's convention — env vars exposed to client code must be prefixed `VITE_`). Throw a clear error at startup if either is missing, rather than failing silently later.
+2. Add a simple creator login: an email/password form (Supabase Auth `signInWithPassword`), a way to sign out, and session persistence (Supabase's client handles this by default via localStorage — confirm it's on). Since there's only ever one creator account in this Supabase project, gating just needs "is there an active session," not checking a specific user ID.
+3. Gate the `/design` and `/design/:id` routes (from T012) behind having an active session — redirect to a login screen/form if not authenticated. The `/` (puzzle list) and `/p/:slug` (play) routes stay public, no auth required.
+4. Don't migrate `storage.ts`'s actual puzzle CRUD to Supabase yet — that's the next task once this auth/plumbing layer is confirmed working. `localStorage` stays as the data source for now.
+
+Scope: new `src/lib/supabaseClient.ts`, a new login component, routing guard changes in `App.tsx`, `package.json`/lockfile.
