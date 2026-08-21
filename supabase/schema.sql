@@ -9,13 +9,21 @@ create table if not exists puzzles (
   title text not null,
   solution_grid text[] not null,
   clues jsonb not null,
+  status text not null default 'draft' check (status in ('draft', 'published')),
   created_at timestamptz not null default now()
 );
 
 alter table puzzles enable row level security;
 
-create policy "public read puzzles"
+-- Solvers (anonymous) can only ever read published puzzles. Drafts are
+-- visible only to the authenticated creator (see the next policy).
+create policy "public read published puzzles"
   on puzzles for select
+  using (status = 'published');
+
+create policy "authenticated read all puzzles"
+  on puzzles for select
+  to authenticated
   using (true);
 
 create policy "authenticated insert puzzles"

@@ -32,3 +32,40 @@ Scope: `CrosswordPlayer.tsx`, `PuzzleDesigner.tsx` only.
 
 ---
 
+## T015 — [TODO] Migrate puzzle storage to Supabase + draft/publish support
+
+**Prerequisite — do this first, before writing any code:** ask the user to confirm they've run `supabase/002_add_draft_status.sql` in their Supabase project's SQL Editor (adds a `status` column to `puzzles` and splits read access so drafts are only visible to the authenticated creator, published puzzles are public). Don't start until confirmed.
+
+**Why this is one task despite touching several files**: these pieces only work together — async Supabase storage, slug generation, and the draft/publish UI are all part of the same change, not separate concerns. That's expected scope, not scope creep. What *would* be scope creep: touching anything not needed to make draft/publish actually work end to end (e.g. don't touch `CrosswordPlayer.tsx`, don't touch unrelated styling).
+
+**1. Update `Puzzle15` (`src/crossword/types.ts`)**: add `slug: string` and `status: 'draft' | 'published'` fields.
+
+**2. Rewrite `src/lib/storage.ts` to call Supabase instead of `localStorage`**, using the `supabase` client from `src/lib/supabaseClient.ts`. Functions become **async** (return Promises) — this is a real API shape change, not a drop-in:
+   - `listPuzzles()`: `select` all columns from `puzzles`, ordered by most-recently-updated/created first.
+   - `getPuzzle(id)`: `select` a single row by `id`.
+   - `savePuzzle(puzzle)`: **insert** if the puzzle has no real `id` yet (new puzzle — let Postgres generate the `uuid` via `default gen_random_uuid()`, don't client-generate an id like the old `puzzle-${Date.now()}` scheme did), **update** if it already has an `id` (editing an existing puzzle). Include `status` in the write.
+   - `deletePuzzle(id)`: `delete` by `id`.
+   - **Slug generation**: when a puzzle is saved for the first time (no `id`/`slug` yet), generate a URL-safe slug from the title — lowercase, kebab-case, and transliterate Turkish characters to ASCII (ç→c, ğ→g, ı→i, ö→o, ş→s, ü→u, İ→i) so the slug is clean in a URL. Handle collisions (e.g. append a short random suffix, or check-and-retry) since `slug` is `unique not null` in the schema. Once a puzzle has a slug, keep it stable across future saves/edits (including the draft→published transition) — regenerating it later would break any link already shared.
+
+**3. Update `App.tsx` for async data loading.** The current `useState<Puzzle15[]>(() => listPuzzles())` lazy-init pattern won't work with an async call. Needs a real loading state, e.g.:
+   ```tsx
+   const [puzzles, setPuzzles] = useState<Puzzle15[]>([]);
+   const [loading, setLoading] = useState(true);
+   const refresh = () => { listPuzzles().then(setPuzzles).catch(...); };
+   useEffect(() => { setLoading(true); listPuzzles().then(setPuzzles).catch(...).finally(() => setLoading(false)); }, []);
+   ```
+   Show a simple loading state on the puzzle list while fetching (reuse `.emptyState`/`.subtle` styling, don't invent a new pattern). Handle save/delete failures with at least a visible error message — don't fail silently. `savePuzzle`/`deletePuzzle` call sites need to handle the returned Promise (await it, then refresh/navigate) instead of assuming synchronous completion.
+
+**4. `PuzzleDesigner.tsx` — split Save into two buttons:**
+   - **"Save draft"** — always enabled, no completeness requirement (remove the current `canSave`-based disabling for this button specifically). Saves with `status: 'draft'`.
+   - **"Publish"** — only enabled when the existing completeness checks pass (today's `canSave` logic: title present, every entry filled, every clue written) — reuse that logic unchanged, just as the gate for this specific button now instead of the single old Save button. Saves with `status: 'published'`.
+   - If editing a puzzle that's *already* published, it's reasonable to just show a single "Save changes" button instead of both (no real need to "re-draft" something already live) — your call on this specific detail, but keep the two-button split for new/draft puzzles as specified.
+
+**5. `PlayPage` in `App.tsx` — fix the temporary slug workaround from T012.** It currently matches `:slug` against puzzle `id` as a placeholder (noted in a comment as temporary). Now that real slugs exist, match against the actual `slug` field instead.
+
+**6. Dashboard (`HomePage` in `App.tsx`) — show status per puzzle.** Add a small badge/label next to each puzzle's title indicating "Draft" vs "Published" (reuse existing small-text/pill styling patterns already in the app, e.g. something in the spirit of `.subtle` or a small colored label — don't invent a whole new visual language for one badge).
+
+Scope: `src/crossword/types.ts`, `src/lib/storage.ts`, `src/App.tsx`, `src/crossword/PuzzleDesigner.tsx`. Don't touch `CrosswordPlayer.tsx` or the Supabase auth/login code from T013 — unrelated to this change.
+
+---
+
