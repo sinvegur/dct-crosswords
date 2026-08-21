@@ -325,8 +325,27 @@ export function CrosswordPlayer({ puzzle }: { puzzle: Puzzle15 }) {
                         toggleDirectionForActiveCell();
                         return;
                       }
-                      if (e.key === 'Backspace' && filled[cellIndex]) {
-                        // Let onChange clear + move prev.
+                      if (e.key === 'Backspace') {
+                        if (filled[cellIndex]) {
+                          // Let onChange clear current + move prev.
+                          return;
+                        }
+                        // Empty cell: onChange won't fire — clear previous + move.
+                        e.preventDefault();
+                        const entry =
+                          activeDirection === 'across'
+                            ? computed.entriesAcross.find((en) => en.number === activeEntryNumber)
+                            : computed.entriesDown.find((en) => en.number === activeEntryNumber);
+                        if (!entry) return;
+                        const indices = entry.cells.map((c) => idxOf(c.row, c.col));
+                        const pos = indices.indexOf(cellIndex);
+                        if (pos <= 0) return;
+                        const prev = indices[pos - 1];
+                        const nextFilled = filled.slice();
+                        nextFilled[prev] = '';
+                        setFilled(nextFilled);
+                        focusCell(prev);
+                        setActiveCellIndex(prev);
                         return;
                       }
                       if (e.key === 'Escape') {

@@ -495,6 +495,22 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
                         if (e.code === 'Space') {
                           e.preventDefault();
                           toggleDirection();
+                          return;
+                        }
+                        if (e.key === 'Backspace') {
+                          if (value) {
+                            // Let onChange clear current + move prev.
+                            return;
+                          }
+                          // Empty cell: onChange won't fire — clear previous + move.
+                          e.preventDefault();
+                          if (!activeEntry) return;
+                          const indices = activeEntry.cells.map((c) => idxOf(c.row, c.col));
+                          const pos = indices.indexOf(cellIndex);
+                          if (pos <= 0) return;
+                          const prev = indices[pos - 1];
+                          setCellLetter(prev, '');
+                          focusCell(prev);
                         }
                       }}
                     />
