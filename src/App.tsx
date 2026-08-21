@@ -19,17 +19,57 @@ import {
 } from '@/components/CreatorLogin';
 import type { Puzzle15 } from '@/crossword/types';
 import type { Template15 } from '@/data/templates';
-import { deletePuzzle, listPuzzles, savePuzzle } from '@/lib/storage';
+import {
+  deletePuzzle,
+  getPuzzle,
+  getPuzzleBySlug,
+  listPuzzles,
+  savePuzzle,
+} from '@/lib/storage';
+
+function errorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  return String(err);
+}
 
 function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const { session, signOut } = useAuth();
-  const [puzzles, setPuzzles] = useState<Puzzle15[]>(() => listPuzzles());
+  const [puzzles, setPuzzles] = useState<Puzzle15[]>([]);
+  const [listLoading, setListLoading] = useState(true);
+  const [listError, setListError] = useState<string | null>(null);
   const [startingTemplate, setStartingTemplate] = useState<Template15 | undefined>(undefined);
   const [gridModalOpen, setGridModalOpen] = useState(false);
 
-  const refresh = () => setPuzzles(listPuzzles());
+  const refresh = useCallback(async () => {
+    setListError(null);
+    try {
+      const next = await listPuzzles();
+      setPuzzles(next);
+    } catch (err) {
+      setListError(errorMessage(err));
+      throw err;
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setListLoading(true);
+    listPuzzles()
+      .then((next) => {
+        if (!cancelled) setPuzzles(next);
+      })
+      .catch((err) => {
+        if (!cancelled) setListError(errorMessage(err));
+      })
+      .finally(() => {
+        if (!cancelled) setListLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.user?.id]);
 
   const isHome = location.pathname === '/';
   const isNewDesign =
@@ -38,8 +78,7 @@ function AppShell() {
   const goHome = () => {
     setStartingTemplate(undefined);
     setGridModalOpen(false);
-    refresh();
-    navigate('/');
+    void refresh().finally(() => navigate('/'));
   };
 
   const openNewPuzzleModal = useCallback(() => {
@@ -47,6 +86,18 @@ function AppShell() {
     setGridModalOpen(true);
     navigate('/design');
   }, [navigate]);
+
+  const handleSaved = async (puzzle: Puzzle15) => {
+    try {
+      await savePuzzle(puzzle);
+      await refresh();
+      setStartingTemplate(undefined);
+      navigate('/');
+    } catch (err) {
+      alert(`Could not save puzzle: ${errorMessage(err)}`);
+      throw err;
+    }
+  };
 
   return (
     <div className="page">
@@ -97,7 +148,9 @@ function AppShell() {
             <RequireAuth>
               <HomePage
                 puzzles={puzzles}
-                onRefresh={refresh}
+                loading={listLoading}
+                error={listError}
+                onRefresh={() => void refresh()}
                 onNewPuzzle={openNewPuzzleModal}
               />
             </RequireAuth>
@@ -114,12 +167,7 @@ function AppShell() {
                 setGridModalOpen={setGridModalOpen}
                 setStartingTemplate={setStartingTemplate}
                 onCancel={goHome}
-                onSaved={(puzzle) => {
-                  savePuzzle(puzzle);
-                  refresh();
-                  setStartingTemplate(undefined);
-                  navigate('/');
-                }}
+                onSaved={handleSaved}
               />
             </RequireAuth>
           }
@@ -130,17 +178,14 @@ function AppShell() {
             <RequireAuth>
               <DesignEditPage
                 puzzles={puzzles}
+                listLoading={listLoading}
                 onCancel={goHome}
-                onSaved={(puzzle) => {
-                  savePuzzle(puzzle);
-                  refresh();
-                  navigate('/');
-                }}
+                onSaved={handleSaved}
               />
             </RequireAuth>
           }
         />
-        <Route path="/p/:slug" element={<PlayPage puzzles={puzzles} />} />
+        <Route path="/p/:slug" element={<PlayPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 
@@ -164,19 +209,42 @@ function AppShell() {
 
 function HomePage({
   puzzles,
+  loading,
+  error,
   onRefresh,
   onNewPuzzle,
 }: {
   puzzles: Puzzle15[];
+  loading: boolean;
+  error: string | null;
   onRefresh: () => void;
   onNewPuzzle: () => void;
 }) {
   const navigate = useNavigate();
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  if (loading) {
+    return (
+      <div className="panel">
+        <div className="panelHeader">Saved puzzles</div>
+        <div className="emptyState">
+          <p className="subtle">Loading puzzles…</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="panel">
       <div className="panelHeader">Saved puzzles</div>
-      {puzzles.length === 0 ? (
+      {error || actionError ? (
+        <div className="emptyState">
+          <p className="loginError">{error || actionError}</p>
+          <button type="button" className="btn" onClick={onRefresh}>
+            Retry
+          </button>
+        </div>
+      ) : puzzles.length === 0 ? (
         <div className="emptyState">
           <p>No puzzles yet.</p>
           <button type="button" className="btn btnPrimary" onClick={onNewPuzzle}>
@@ -188,18 +256,26 @@ function HomePage({
           {puzzles.map((p) => (
             <li key={p.id} className="puzzleRow">
               <div>
-                <div className="puzzleTitle">{p.title}</div>
+                <div className="puzzleTitleRow">
+                  <div className="puzzleTitle">{p.title}</div>
+                  <span
+                    className={`puzzleStatus ${p.status === 'published' ? 'isPublished' : 'isDraft'}`}
+                  >
+                    {p.status === 'published' ? 'Published' : 'Draft'}
+                  </span>
+                </div>
                 <div className="subtle">
                   {p.meta?.createdAtISO
                     ? new Date(p.meta.createdAtISO).toLocaleString('en-US')
-                    : p.id}
+                    : p.slug}
                 </div>
               </div>
               <div className="puzzleActions">
                 <button
                   type="button"
                   className="btn btnPrimary"
-                  onClick={() => navigate(`/p/${p.id}`)}
+                  onClick={() => navigate(`/p/${p.slug}`)}
+                  disabled={!p.slug}
                 >
                   Play
                 </button>
@@ -213,10 +289,15 @@ function HomePage({
                 <button
                   type="button"
                   className="btn"
-                  onClick={() => {
+                  onClick={async () => {
                     if (!confirm(`Delete “${p.title}”?`)) return;
-                    deletePuzzle(p.id);
-                    onRefresh();
+                    setActionError(null);
+                    try {
+                      await deletePuzzle(p.id);
+                      onRefresh();
+                    } catch (err) {
+                      setActionError(errorMessage(err));
+                    }
                   }}
                 >
                   Delete
@@ -243,7 +324,7 @@ function DesignNewPage({
   setGridModalOpen: (open: boolean) => void;
   setStartingTemplate: (t: Template15 | undefined) => void;
   onCancel: () => void;
-  onSaved: (puzzle: Puzzle15) => void;
+  onSaved: (puzzle: Puzzle15) => void | Promise<void>;
 }) {
   useEffect(() => {
     if (!startingTemplate && !gridModalOpen) {
@@ -270,21 +351,57 @@ function DesignNewPage({
 
 function DesignEditPage({
   puzzles,
+  listLoading,
   onCancel,
   onSaved,
 }: {
   puzzles: Puzzle15[];
+  listLoading: boolean;
   onCancel: () => void;
-  onSaved: (puzzle: Puzzle15) => void;
+  onSaved: (puzzle: Puzzle15) => void | Promise<void>;
 }) {
   const { id } = useParams<{ id: string }>();
-  const puzzle = useMemo(() => puzzles.find((p) => p.id === id), [puzzles, id]);
+  const fromList = useMemo(() => puzzles.find((p) => p.id === id), [puzzles, id]);
+  const [fetched, setFetched] = useState<Puzzle15 | undefined>(undefined);
+  const [fetching, setFetching] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
-  if (!puzzle) {
+  useEffect(() => {
+    if (!id || fromList || listLoading) return;
+    let cancelled = false;
+    setFetching(true);
+    getPuzzle(id)
+      .then((p) => {
+        if (!cancelled) setFetched(p);
+      })
+      .catch((err) => {
+        if (!cancelled) setFetchError(errorMessage(err));
+      })
+      .finally(() => {
+        if (!cancelled) setFetching(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id, fromList, listLoading]);
+
+  const puzzle = fromList ?? fetched;
+
+  if (listLoading || fetching) {
     return (
       <div className="panel">
         <div className="emptyState">
-          <p>Puzzle not found.</p>
+          <p className="subtle">Loading puzzle…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (fetchError || !puzzle) {
+    return (
+      <div className="panel">
+        <div className="emptyState">
+          <p>{fetchError ?? 'Puzzle not found.'}</p>
           <button type="button" className="btn" onClick={onCancel}>
             Back
           </button>
@@ -303,11 +420,45 @@ function DesignEditPage({
   );
 }
 
-function PlayPage({ puzzles }: { puzzles: Puzzle15[] }) {
+function PlayPage() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
-  // Temporary: slug is the puzzle id until T013 adds a real slug field.
-  const playing = useMemo(() => puzzles.find((p) => p.id === slug), [puzzles, slug]);
+  const [playing, setPlaying] = useState<Puzzle15 | undefined>(undefined);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!slug) {
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    getPuzzleBySlug(slug)
+      .then((p) => {
+        if (!cancelled) setPlaying(p);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(errorMessage(err));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [slug]);
+
+  if (loading) {
+    return (
+      <div className="panel">
+        <div className="emptyState">
+          <p className="subtle">Loading puzzle…</p>
+        </div>
+      </div>
+    );
+  }
 
   if (playing) {
     return <CrosswordPlayer puzzle={playing} />;
@@ -316,7 +467,7 @@ function PlayPage({ puzzles }: { puzzles: Puzzle15[] }) {
   return (
     <div className="panel">
       <div className="emptyState">
-        <p>Puzzle not found.</p>
+        <p>{error ?? 'Puzzle not found.'}</p>
         <button type="button" className="btn" onClick={() => navigate('/')}>
           Back
         </button>
