@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
+import { Grid2x2, PencilLine, Shuffle } from 'lucide-react';
 import { SIZE_15, computeEntries15, type Direction } from './engine';
 import type { Puzzle15 } from './types';
 import {
@@ -9,6 +10,8 @@ import {
   type Template15,
 } from '@/data/templates';
 import { ShuffleConfirmModal } from '@/components/ShuffleConfirmModal';
+
+const TOOLBAR_ICON_SIZE = 16;
 
 function idxOf(row: number, col: number) {
   return row * SIZE_15 + col;
@@ -408,35 +411,50 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
         </div>
 
         <div className="editorToolbar">
-          <div className="modeToggle" role="group" aria-label="Edit mode">
+          <div className="toolbarSegment" role="group" aria-label="Edit mode">
             <button
               type="button"
-              className={`btn ${editMode === 'letter' ? 'btnPrimary' : ''}`}
+              className={`toolbarControl ${editMode === 'letter' ? 'isActive' : ''}`}
+              aria-label="Letter mode"
+              title="Letter mode"
+              aria-pressed={editMode === 'letter'}
               onClick={() => setEditMode('letter')}
             >
-              Letter mode
+              <PencilLine size={TOOLBAR_ICON_SIZE} aria-hidden />
             </button>
             <button
               type="button"
-              className={`btn ${editMode === 'block' ? 'btnPrimary' : ''}`}
+              className={`toolbarControl ${editMode === 'block' ? 'isActive' : ''}`}
+              aria-label="Block mode"
+              title="Block mode"
+              aria-pressed={editMode === 'block'}
               onClick={() => setEditMode('block')}
             >
-              Block mode
+              <Grid2x2 size={TOOLBAR_ICON_SIZE} aria-hidden />
             </button>
           </div>
 
-          <label className={`symmetryToggle ${symmetry ? 'isOn' : ''}`}>
-            <input
-              type="checkbox"
-              checked={symmetry}
-              onChange={(e) => setSymmetry(e.target.checked)}
-            />
-            <span className="symmetrySwitch" aria-hidden />
-            <span className="symmetryLabel">180° block symmetry</span>
-          </label>
+          <button
+            type="button"
+            className={`toolbarControl ${symmetry ? 'isActive' : ''}`}
+            aria-label="Toggle 180° block symmetry"
+            title="Toggle 180° block symmetry"
+            aria-pressed={symmetry}
+            onClick={() => setSymmetry((v) => !v)}
+          >
+            <span className="toolbarGlyph" aria-hidden>
+              180°
+            </span>
+          </button>
 
-          <button type="button" className="btn" onClick={requestShuffle}>
-            Shuffle
+          <button
+            type="button"
+            className="toolbarControl"
+            aria-label="Shuffle grid layout"
+            title="Shuffle grid layout"
+            onClick={requestShuffle}
+          >
+            <Shuffle size={TOOLBAR_ICON_SIZE} aria-hidden />
           </button>
         </div>
 
