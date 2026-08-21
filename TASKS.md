@@ -50,6 +50,19 @@ Scope: `.cell input` in `src/styles.css` only (plus confirming/adding `box-sizin
 
 **Implementation notes:** `.cell input` now has `box-sizing: border-box` and `padding-top: 18px` (from `.cellNumber` top `3px` + `11px×1.15` line-height ≈ `15.65px`, plus breathing room). T009 chip kept. Checked İ/Ğ/Ö/Ş/Ü with numbers `1` and `25` at ~48/40/32px cells — letter ink stays below the number row.
 
+**Rejected — wrong approach, revert `padding-top` entirely.** The user's feedback: crossword cells are squares with the letter truly centered in the square — that's non-negotiable, not a style preference. `padding-top` visually shifts the letter's optical center downward within the cell; even though the cell's own border stays a geometric square, the letter no longer reads as centered in it, which breaks the classic crossword look this app is explicitly going for. **Revert `padding-top: 18px`** (the `box-sizing: border-box` addition can stay, it's harmless/good practice, just not doing anything useful without the padding).
+
+**New required approach — no layout shifting, tune size/footprint instead, verify empirically:**
+
+Real constraint to work within: the letter must stay truly centered in the square cell at all times. That means a mathematically airtight guarantee against every possible glyph isn't achievable here (there will always be some theoretical diacritic height that could reach the corner) — the goal is a combination that holds up in actual testing against this app's real alphabet, not a formal proof.
+
+1. **Shrink `.cellNumber`'s footprint** — smaller font-size than the current `11px` (try ~9-10px), tucked as tightly into the literal corner as still looks intentional (reduce the `top`/`left` inset a bit from T009's `3px`/`4px`). Smaller number = smaller collision target.
+2. **Modestly reduce the letter's `font-size`** from the current `28px` — small tuning (try somewhere in the `24-26px` range), not a big step down. This isn't walking back T007's "letters should dominate the cell" goal, it's a minor adjustment in service of a hard constraint (no overlap) that takes priority — the letter should still read as large/bold/NYT-style, just not at the exact max that was pushing into the corner.
+3. Keep T009's background chip on `.cellNumber` as a safety net.
+4. **Verify empirically against the worst realistic case**, since that's the actual bar here (not a mathematical proof): `İ` specifically (the originally reported failure) plus `Ğ`, `Ö`, `Ş`, `Ü`, paired with a **double-digit number** (worst case for chip size, e.g. "25" as originally reported) at the **smallest realistic cell size** (narrow browser window / a denser template like `easy-fill`). Confirm the letter stays visually centered in the square (no perceptible shift) and no diacritic ink touches the number's chip in any of these combinations. If some combination still grazes, tune size down slightly further and re-check — this is a "verify it actually holds," not "implement and assume."
+
+**Implementation notes (revision):** Reverted `padding-top` entirely (kept `box-sizing: border-box`). Letter `font-size` `28→24px`; `.cellNumber` `11→9px`, inset `3/4→2/2`, tighter chip padding. Letters stay optically centered. Checked `İ/Ğ/Ö/Ş/Ü` + `25` at ~44/40/34px cells — number sits clear of diacritics with chip as backup.
+
 ---
 
 ## T013 — [BLOCKED, do not start until T014 is done] Supabase client + creator auth gate
