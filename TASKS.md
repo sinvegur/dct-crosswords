@@ -32,25 +32,7 @@ Scope: `CrosswordPlayer.tsx`, `PuzzleDesigner.tsx` only.
 
 ---
 
-## T012 — [READY FOR REVIEW] Add URL routing (react-router-dom)
-
-Starting a backend migration (Supabase — see T013, blocked behind this one). First prerequisite: the app currently has **no URL routing at all** — `App.tsx` is one screen switching between `home`/`design`/`play` via a `useState<Mode>`, so there's no way to represent "a link to puzzle X" as a real, shareable URL. That's required for the stated goal (solvers access puzzles via dedicated links).
-
-**1.** Add `react-router-dom`. Set up routes replacing the current `mode` state:
-   - `/` — the puzzles list (currently `mode === 'home'`)
-   - `/design` — new puzzle (currently the "New puzzle" flow via `StartingGridModal` → designer)
-   - `/design/:id` — edit an existing puzzle (currently `mode === 'design'` with `editPuzzle` set)
-   - `/p/:slug` — play a puzzle by its shareable slug (currently `mode === 'play'` with `playId` — note the switch from an internal `id`/`playId` lookup to a public-facing `slug`; puzzles don't have a `slug` field yet, that's part of T013's data model, not this task — for now just add the route shape and pass `slug` as a param, wiring it to actual data comes in T013)
-
-**2.** Preserve all existing behavior/navigation exactly (Puzzles list, New puzzle modal flow, Edit, Delete, Play, Cancel/Save from the designer) — this is a routing restructure, not a feature or behavior change. `localStorage`-backed `src/lib/storage.ts` stays as-is for this task; don't touch it yet.
-
-**3.** Keep the diff to `App.tsx`, `package.json`/lockfile, and routing wiring only. Don't touch `CrosswordPlayer.tsx`, `PuzzleDesigner.tsx`, or `storage.ts` internals beyond what's needed to receive params instead of local state (e.g. reading `:id`/`:slug` from the route instead of a `playId`/`editPuzzle` state variable).
-
-**Implementation notes:** `BrowserRouter` + routes live in `App.tsx` (`/`, `/design`, `/design/:id`, `/p/:slug`). Play temporarily resolves `:slug` against puzzle `id` so existing localStorage puzzles still open until T013 adds a real slug. New-puzzle flow still uses `StartingGridModal` on `/design`.
-
----
-
-## T013 — [BLOCKED, do not start yet — will flip to TODO once T012 is done] Supabase client + creator auth gate
+## T013 — [TODO] Supabase client + creator auth gate
 
 **Blocked on T012.** Also blocked on the user having (a) added `.env` with `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`, and (b) run `supabase/schema.sql` in their Supabase project's SQL Editor, and (c) manually created the one creator account in Supabase Auth — ask if unsure these are done before starting.
 
