@@ -179,10 +179,13 @@ textarea {
 }
 
 .cell input {
+  box-sizing: border-box;
   position: relative;
   z-index: 1;
   width: 100%;
   height: 100%;
+  /* Reserve space for .cellNumber: top 3px + 11px×1.15 line-height + breathing room */
+  padding-top: 18px;
   text-align: center;
   border: none;
   outline: none;
