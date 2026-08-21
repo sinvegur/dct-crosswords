@@ -77,3 +77,5 @@ Real constraint to work within: the letter must stay truly centered in the squar
 Scope: new `src/lib/supabaseClient.ts`, a new login component, routing guard changes in `App.tsx`, `package.json`/lockfile.
 
 **Implementation notes:** Added `AuthProvider` / `RequireAuth` / `CreatorLogin` in `src/components/CreatorLogin.tsx`, `/login` route, Sign out in nav when session exists. Default Supabase client persists session in localStorage. Minimal `.loginForm` styles in `styles.css` so the form is usable. Puzzle CRUD still localStorage. Confirm schema.sql was run and the creator Auth user exists before testing sign-in.
+
+**Implementation notes (revision):** Centered login card via `.loginPanel` (`max-width: 420px`, `margin: 40px auto 0`). Post-login always goes to `/` (removed `from` return-path). Sign out awaits `signOut()` then `navigate('/login')`.

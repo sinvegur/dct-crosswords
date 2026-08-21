@@ -74,7 +74,14 @@ function AppShell() {
             New puzzle
           </button>
           {session ? (
-            <button type="button" className="btn" onClick={() => void signOut()}>
+            <button
+              type="button"
+              className="btn"
+              onClick={async () => {
+                await signOut();
+                navigate('/login');
+              }}
+            >
               Sign out
             </button>
           ) : null}

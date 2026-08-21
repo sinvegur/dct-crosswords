@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabaseClient';
 
 type AuthContextValue = {
@@ -66,7 +66,6 @@ export function useAuth() {
 
 export function RequireAuth({ children }: { children: ReactNode }) {
   const { session, loading } = useAuth();
-  const location = useLocation();
 
   if (loading) {
     return (
@@ -79,7 +78,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   }
 
   if (!session) {
-    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+    return <Navigate to="/login" replace />;
   }
 
   return children;
@@ -88,9 +87,6 @@ export function RequireAuth({ children }: { children: ReactNode }) {
 export function CreatorLogin() {
   const { session, loading } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
-  const rawFrom = (location.state as { from?: string } | null)?.from;
-  const from = rawFrom && rawFrom.startsWith('/') ? rawFrom : '/design';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -99,9 +95,9 @@ export function CreatorLogin() {
 
   useEffect(() => {
     if (!loading && session) {
-      navigate(from, { replace: true });
+      navigate('/', { replace: true });
     }
-  }, [loading, session, navigate, from]);
+  }, [loading, session, navigate]);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -116,12 +112,12 @@ export function CreatorLogin() {
       setError(signInError.message);
       return;
     }
-    navigate(from, { replace: true });
+    navigate('/', { replace: true });
   };
 
   if (loading || session) {
     return (
-      <div className="panel">
+      <div className="panel loginPanel">
         <div className="emptyState">
           <p className="subtle">{session ? 'Signed in…' : 'Checking session…'}</p>
         </div>
@@ -130,7 +126,7 @@ export function CreatorLogin() {
   }
 
   return (
-    <div className="panel">
+    <div className="panel loginPanel">
       <div className="panelHeader">Creator login</div>
       <form className="loginForm" onSubmit={onSubmit}>
         <label className="loginField">
