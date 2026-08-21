@@ -91,9 +91,11 @@ function AppShell() {
     try {
       await savePuzzle(puzzle);
       await refresh();
+      // Leave design before clearing template — otherwise DesignNewPage's
+      // "no template" effect would reopen the starting-grid modal.
+      navigate('/');
       setStartingTemplate(undefined);
       setGridModalOpen(false);
-      navigate('/');
     } catch (err) {
       alert(`Could not save puzzle: ${errorMessage(err)}`);
       throw err;
@@ -164,7 +166,6 @@ function AppShell() {
             <RequireAuth>
               <DesignNewPage
                 startingTemplate={startingTemplate}
-                gridModalOpen={gridModalOpen}
                 setGridModalOpen={setGridModalOpen}
                 setStartingTemplate={setStartingTemplate}
                 onCancel={goHome}
@@ -316,24 +317,26 @@ function HomePage({
 
 function DesignNewPage({
   startingTemplate,
-  gridModalOpen,
   setGridModalOpen,
   setStartingTemplate,
   onCancel,
   onSaved,
 }: {
   startingTemplate: Template15 | undefined;
-  gridModalOpen: boolean;
   setGridModalOpen: (open: boolean) => void;
   setStartingTemplate: (t: Template15 | undefined) => void;
   onCancel: () => void;
   onSaved: (puzzle: Puzzle15) => void | Promise<void>;
 }) {
+  // Open the template picker once when entering new-design without a template.
+  // Do NOT depend on startingTemplate/gridModalOpen — clearing the template on
+  // save would otherwise re-trigger and pop the modal on the puzzles list.
   useEffect(() => {
-    if (!startingTemplate && !gridModalOpen) {
+    if (!startingTemplate) {
       setGridModalOpen(true);
     }
-  }, [startingTemplate, gridModalOpen, setGridModalOpen]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only
+  }, []);
 
   if (!startingTemplate) {
     return null;
