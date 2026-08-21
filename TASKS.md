@@ -65,11 +65,7 @@ Real constraint to work within: the letter must stay truly centered in the squar
 
 ---
 
-## T013 — [BLOCKED, do not start until T014 is done] Supabase client + creator auth gate
-
-**Deprioritized behind T014** — a correctness bug (numbers overlapping letters) takes priority over new backend work. Different files, no conflict — this just needs to wait its turn in the queue.
-
-**Blocked on T012.** Also blocked on the user having (a) added `.env` with `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`, and (b) run `supabase/schema.sql` in their Supabase project's SQL Editor, and (c) manually created the one creator account in Supabase Auth — ask if unsure these are done before starting.
+## T013 — [READY FOR REVIEW] Supabase client + creator auth gate
 
 **Scope of this task — plumbing and auth only, not the puzzle data migration yet (that's a separate follow-up task once this lands):**
 
@@ -79,3 +75,9 @@ Real constraint to work within: the letter must stay truly centered in the squar
 4. Don't migrate `storage.ts`'s actual puzzle CRUD to Supabase yet — that's the next task once this auth/plumbing layer is confirmed working. `localStorage` stays as the data source for now.
 
 Scope: new `src/lib/supabaseClient.ts`, a new login component, routing guard changes in `App.tsx`, `package.json`/lockfile.
+
+**Implementation notes:** Added `AuthProvider` / `RequireAuth` / `CreatorLogin` in `src/components/CreatorLogin.tsx`, `/login` route, Sign out in nav when session exists. Default Supabase client persists session in localStorage. Minimal `.loginForm` styles in `styles.css` so the form is usable. Puzzle CRUD still localStorage. Confirm schema.sql was run and the creator Auth user exists before testing sign-in.
+
+**Implementation notes (revision):** Centered login card via `.loginPanel` (`max-width: 420px`, `margin: 40px auto 0`). Post-login always goes to `/` (removed `from` return-path). Sign out awaits `signOut()` then `navigate('/login')`.
+
+**Implementation notes (revision 2):** `/` wrapped in `RequireAuth` (only `/p/:slug` stays public). Puzzles / New puzzle / Sign out nav shown only when `session` is set — logo remains for everyone.

@@ -11,6 +11,12 @@ import {
 import { CrosswordPlayer } from '@/crossword/CrosswordPlayer';
 import { PuzzleDesigner } from '@/crossword/PuzzleDesigner';
 import { StartingGridModal } from '@/components/StartingGridModal';
+import {
+  AuthProvider,
+  CreatorLogin,
+  RequireAuth,
+  useAuth,
+} from '@/components/CreatorLogin';
 import type { Puzzle15 } from '@/crossword/types';
 import type { Template15 } from '@/data/templates';
 import { deletePuzzle, listPuzzles, savePuzzle } from '@/lib/storage';
@@ -18,6 +24,7 @@ import { deletePuzzle, listPuzzles, savePuzzle } from '@/lib/storage';
 function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { session, signOut } = useAuth();
   const [puzzles, setPuzzles] = useState<Puzzle15[]>(() => listPuzzles());
   const [startingTemplate, setStartingTemplate] = useState<Template15 | undefined>(undefined);
   const [gridModalOpen, setGridModalOpen] = useState(false);
@@ -52,20 +59,34 @@ function AppShell() {
           />
         </button>
         <div className="nav">
-          <button
-            type="button"
-            className={`btn ${isHome ? 'btnPrimary' : ''}`}
-            onClick={goHome}
-          >
-            Puzzles
-          </button>
-          <button
-            type="button"
-            className={`btn ${isNewDesign ? 'btnPrimary' : ''}`}
-            onClick={openNewPuzzleModal}
-          >
-            New puzzle
-          </button>
+          {session ? (
+            <>
+              <button
+                type="button"
+                className={`btn ${isHome ? 'btnPrimary' : ''}`}
+                onClick={goHome}
+              >
+                Puzzles
+              </button>
+              <button
+                type="button"
+                className={`btn ${isNewDesign ? 'btnPrimary' : ''}`}
+                onClick={openNewPuzzleModal}
+              >
+                New puzzle
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={async () => {
+                  await signOut();
+                  navigate('/login');
+                }}
+              >
+                Sign out
+              </button>
+            </>
+          ) : null}
         </div>
       </div>
 
@@ -73,43 +94,50 @@ function AppShell() {
         <Route
           path="/"
           element={
-            <HomePage
-              puzzles={puzzles}
-              onRefresh={refresh}
-              onNewPuzzle={openNewPuzzleModal}
-            />
+            <RequireAuth>
+              <HomePage
+                puzzles={puzzles}
+                onRefresh={refresh}
+                onNewPuzzle={openNewPuzzleModal}
+              />
+            </RequireAuth>
           }
         />
+        <Route path="/login" element={<CreatorLogin />} />
         <Route
           path="/design"
           element={
-            <DesignNewPage
-              startingTemplate={startingTemplate}
-              gridModalOpen={gridModalOpen}
-              setGridModalOpen={setGridModalOpen}
-              setStartingTemplate={setStartingTemplate}
-              onCancel={goHome}
-              onSaved={(puzzle) => {
-                savePuzzle(puzzle);
-                refresh();
-                setStartingTemplate(undefined);
-                navigate('/');
-              }}
-            />
+            <RequireAuth>
+              <DesignNewPage
+                startingTemplate={startingTemplate}
+                gridModalOpen={gridModalOpen}
+                setGridModalOpen={setGridModalOpen}
+                setStartingTemplate={setStartingTemplate}
+                onCancel={goHome}
+                onSaved={(puzzle) => {
+                  savePuzzle(puzzle);
+                  refresh();
+                  setStartingTemplate(undefined);
+                  navigate('/');
+                }}
+              />
+            </RequireAuth>
           }
         />
         <Route
           path="/design/:id"
           element={
-            <DesignEditPage
-              puzzles={puzzles}
-              onCancel={goHome}
-              onSaved={(puzzle) => {
-                savePuzzle(puzzle);
-                refresh();
-                navigate('/');
-              }}
-            />
+            <RequireAuth>
+              <DesignEditPage
+                puzzles={puzzles}
+                onCancel={goHome}
+                onSaved={(puzzle) => {
+                  savePuzzle(puzzle);
+                  refresh();
+                  navigate('/');
+                }}
+              />
+            </RequireAuth>
           }
         />
         <Route path="/p/:slug" element={<PlayPage puzzles={puzzles} />} />
@@ -117,7 +145,7 @@ function AppShell() {
       </Routes>
 
       <StartingGridModal
-        open={gridModalOpen}
+        open={gridModalOpen && !!session}
         onClose={() => {
           setGridModalOpen(false);
           if (location.pathname === '/design' && !startingTemplate) {
@@ -300,7 +328,9 @@ function PlayPage({ puzzles }: { puzzles: Puzzle15[] }) {
 export default function App() {
   return (
     <BrowserRouter>
-      <AppShell />
+      <AuthProvider>
+        <AppShell />
+      </AuthProvider>
     </BrowserRouter>
   );
 }
