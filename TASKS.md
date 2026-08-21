@@ -32,7 +32,42 @@ Scope: `CrosswordPlayer.tsx`, `PuzzleDesigner.tsx` only.
 
 ---
 
-## T013 — [TODO] Supabase client + creator auth gate
+## T014 — [READY FOR REVIEW] Structurally prevent number/letter overlap (T009's chip fix wasn't sufficient)
+
+Screenshot: a cell showing "25" with an `İ` below it — the number visually overlaps the letter's dot. T009 added a background chip behind `.cellNumber` hoping it would always cover the letter's ink underneath, but that only works if the chip is guaranteed bigger than whatever the letter can render into that corner — and it isn't. This matters more here than in a typical crossword app: **most Turkish uppercase diacritics sit above the letter** (İ's dot, Ğ's breve, Ö/Ü's dieresis), exactly where the corner number lives, so this isn't a one-off glyph edge case, it's systemic to this app's alphabet.
+
+**Why "make the chip bigger" isn't the real fix**: any padding/chip-size number is a guess tuned against whichever glyphs happen to get tested — a genuinely sustainable fix doesn't depend on guessing font metrics per glyph at all.
+
+**Required approach — reserve real layout space, don't just paint over a guessed danger zone:**
+
+Give `.cell input` (`src/styles.css`) a `padding-top` sized to comfortably clear the corner number's actual rendered height (number height + a little breathing room — reference real values, e.g. current `.cellNumber` font-size/line-height/inset, don't guess a round number). This shifts the letter's entire rendering box down within the cell, so the letter's ink — including any diacritic above it — starts *below* the number's row by construction, not by chance. This is standard crossword typography, not a compromise: real crossword grids visually center the letter within the space *below* the corner number, not the full square. Confirm `.cell input` has `box-sizing: border-box` (add if missing) so the added padding doesn't change the input's overall size, just where its content sits within it.
+
+Keep T009's background chip on `.cellNumber` too — harmless, and a reasonable second line of defense — but the padding-based reservation is what actually guarantees no overlap, not the chip.
+
+**Verify specifically against the failure case and the systemic pattern, not just a couple of letters:** test `İ`, `Ğ`, `Ö`, `Ş`, `Ü` (the letters whose diacritics sit at the top) in cells numbered with both single and double-digit numbers (e.g. "1" and "25"), at a couple of different window widths/cell sizes. No ink from the letter (including its diacritic) should ever visually reach the number's chip.
+
+Scope: `.cell input` in `src/styles.css` only (plus confirming/adding `box-sizing: border-box` there if not already present).
+
+**Implementation notes:** `.cell input` now has `box-sizing: border-box` and `padding-top: 18px` (from `.cellNumber` top `3px` + `11px×1.15` line-height ≈ `15.65px`, plus breathing room). T009 chip kept. Checked İ/Ğ/Ö/Ş/Ü with numbers `1` and `25` at ~48/40/32px cells — letter ink stays below the number row.
+
+**Rejected — wrong approach, revert `padding-top` entirely.** The user's feedback: crossword cells are squares with the letter truly centered in the square — that's non-negotiable, not a style preference. `padding-top` visually shifts the letter's optical center downward within the cell; even though the cell's own border stays a geometric square, the letter no longer reads as centered in it, which breaks the classic crossword look this app is explicitly going for. **Revert `padding-top: 18px`** (the `box-sizing: border-box` addition can stay, it's harmless/good practice, just not doing anything useful without the padding).
+
+**New required approach — no layout shifting, tune size/footprint instead, verify empirically:**
+
+Real constraint to work within: the letter must stay truly centered in the square cell at all times. That means a mathematically airtight guarantee against every possible glyph isn't achievable here (there will always be some theoretical diacritic height that could reach the corner) — the goal is a combination that holds up in actual testing against this app's real alphabet, not a formal proof.
+
+1. **Shrink `.cellNumber`'s footprint** — smaller font-size than the current `11px` (try ~9-10px), tucked as tightly into the literal corner as still looks intentional (reduce the `top`/`left` inset a bit from T009's `3px`/`4px`). Smaller number = smaller collision target.
+2. **Modestly reduce the letter's `font-size`** from the current `28px` — small tuning (try somewhere in the `24-26px` range), not a big step down. This isn't walking back T007's "letters should dominate the cell" goal, it's a minor adjustment in service of a hard constraint (no overlap) that takes priority — the letter should still read as large/bold/NYT-style, just not at the exact max that was pushing into the corner.
+3. Keep T009's background chip on `.cellNumber` as a safety net.
+4. **Verify empirically against the worst realistic case**, since that's the actual bar here (not a mathematical proof): `İ` specifically (the originally reported failure) plus `Ğ`, `Ö`, `Ş`, `Ü`, paired with a **double-digit number** (worst case for chip size, e.g. "25" as originally reported) at the **smallest realistic cell size** (narrow browser window / a denser template like `easy-fill`). Confirm the letter stays visually centered in the square (no perceptible shift) and no diacritic ink touches the number's chip in any of these combinations. If some combination still grazes, tune size down slightly further and re-check — this is a "verify it actually holds," not "implement and assume."
+
+**Implementation notes (revision):** Reverted `padding-top` entirely (kept `box-sizing: border-box`). Letter `font-size` `28→24px`; `.cellNumber` `11→9px`, inset `3/4→2/2`, tighter chip padding. Letters stay optically centered. Checked `İ/Ğ/Ö/Ş/Ü` + `25` at ~44/40/34px cells — number sits clear of diacritics with chip as backup.
+
+---
+
+## T013 — [BLOCKED, do not start until T014 is done] Supabase client + creator auth gate
+
+**Deprioritized behind T014** — a correctness bug (numbers overlapping letters) takes priority over new backend work. Different files, no conflict — this just needs to wait its turn in the queue.
 
 **Blocked on T012.** Also blocked on the user having (a) added `.env` with `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`, and (b) run `supabase/schema.sql` in their Supabase project's SQL Editor, and (c) manually created the one creator account in Supabase Auth — ask if unsure these are done before starting.
 
