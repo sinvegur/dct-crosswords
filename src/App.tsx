@@ -11,6 +11,7 @@ import {
 import { CrosswordPlayer } from '@/crossword/CrosswordPlayer';
 import { PuzzleDesigner } from '@/crossword/PuzzleDesigner';
 import { StartingGridModal } from '@/components/StartingGridModal';
+import { DeletePuzzleConfirmModal } from '@/components/DeletePuzzleConfirmModal';
 import {
   AuthProvider,
   CreatorLogin,
@@ -231,6 +232,23 @@ function HomePage({
 }) {
   const navigate = useNavigate();
   const [actionError, setActionError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Puzzle15 | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setActionError(null);
+    setDeleting(true);
+    try {
+      await deletePuzzle(deleteTarget.id);
+      setDeleteTarget(null);
+      onRefresh();
+    } catch (err) {
+      setActionError(errorMessage(err));
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -300,16 +318,7 @@ function HomePage({
                 <button
                   type="button"
                   className="btn"
-                  onClick={async () => {
-                    if (!confirm(`Delete “${p.title}”?`)) return;
-                    setActionError(null);
-                    try {
-                      await deletePuzzle(p.id);
-                      onRefresh();
-                    } catch (err) {
-                      setActionError(errorMessage(err));
-                    }
-                  }}
+                  onClick={() => setDeleteTarget(p)}
                 >
                   Delete
                 </button>
@@ -318,6 +327,16 @@ function HomePage({
           ))}
         </ul>
       )}
+
+      <DeletePuzzleConfirmModal
+        open={deleteTarget != null}
+        puzzleTitle={deleteTarget?.title ?? ''}
+        deleting={deleting}
+        onClose={() => {
+          if (!deleting) setDeleteTarget(null);
+        }}
+        onConfirm={() => void confirmDelete()}
+      />
     </div>
   );
 }

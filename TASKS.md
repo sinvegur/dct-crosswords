@@ -30,15 +30,3 @@ Both `CrosswordPlayer.tsx` (button labeled "Toggle (SPACE)", in the ACROSS `dire
 
 Scope: `CrosswordPlayer.tsx`, `PuzzleDesigner.tsx` only.
 
----
-
-## T017 — [TODO] Replace native `confirm()` on puzzle delete with a proper modal
-
-`HomePage`'s Delete button (`App.tsx`) still uses the browser's native `confirm("Delete \"${p.title}\"?")` — flagged as inconsistent back during T004's review and never actually fixed. Replace it with a styled modal matching the app's existing pattern (`ShuffleConfirmModal`, `UnsavedChangesModal`) — same `.modalOverlay`/`.modal`/`.modalHeader`/`.modalTitle`/`.modalClose`/`.modalFooter` CSS, not a new visual language.
-
-**1.** Create a new small modal component (following the same one-component-per-confirmation convention as `ShuffleConfirmModal`/`UnsavedChangesModal` — a generic reusable confirm modal is also fine if you'd rather, your call, but stay consistent with whichever pattern you pick). Title something like "Delete puzzle?", body mentioning the puzzle's title by name, two actions: **Cancel** (plain) and **Delete** (the confirming action — consider styling it as visually distinct/destructive if that's easy given existing button classes, but don't invent a whole new button-variant system just for this one case if it's not straightforward).
-
-**2.** Wire it into `HomePage`'s delete flow in place of `confirm(...)` — keep the existing behavior otherwise unchanged (still calls `deletePuzzle(p.id)`, still calls `onRefresh()`, still sets `actionError` on failure via the existing `errorMessage` handling).
-
-Scope: `App.tsx`, one new modal component, `styles.css` only if something genuinely isn't covered by the existing modal classes.
-
