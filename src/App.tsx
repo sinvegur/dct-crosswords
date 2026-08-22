@@ -8,7 +8,7 @@ import {
   useNavigate,
   useParams,
 } from 'react-router-dom';
-import { CrosswordPlayer } from '@/crossword/CrosswordPlayer';
+import { CrosswordPlayer, SOLVER_NAME_KEY } from '@/crossword/CrosswordPlayer';
 import { PuzzleDesigner } from '@/crossword/PuzzleDesigner';
 import { StartingGridModal } from '@/components/StartingGridModal';
 import { DeletePuzzleConfirmModal } from '@/components/DeletePuzzleConfirmModal';
@@ -458,6 +458,15 @@ function PlayPage() {
   const [playing, setPlaying] = useState<Puzzle15 | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [solverName, setSolverName] = useState<string | null>(() => {
+    const stored = localStorage.getItem(SOLVER_NAME_KEY);
+    return stored?.trim() ? stored.trim() : null;
+  });
+  const [showNameGate, setShowNameGate] = useState(() => {
+    const stored = localStorage.getItem(SOLVER_NAME_KEY);
+    return !stored?.trim();
+  });
+  const [nameDraft, setNameDraft] = useState('');
 
   useEffect(() => {
     if (!slug) {
@@ -482,6 +491,20 @@ function PlayPage() {
     };
   }, [slug]);
 
+  const beginWithName = () => {
+    const trimmed = nameDraft.trim();
+    if (!trimmed) return;
+    localStorage.setItem(SOLVER_NAME_KEY, trimmed);
+    setSolverName(trimmed);
+    setShowNameGate(false);
+    setNameDraft('');
+  };
+
+  const openChangeName = () => {
+    setNameDraft(solverName ?? '');
+    setShowNameGate(true);
+  };
+
   if (loading) {
     return (
       <div className="panel">
@@ -492,8 +515,47 @@ function PlayPage() {
     );
   }
 
-  if (playing) {
-    return <CrosswordPlayer puzzle={playing} />;
+  if (playing && showNameGate) {
+    return (
+      <div className="panel solverGate">
+        <div className="emptyState">
+          <div className="title" style={{ fontSize: 20, marginBottom: 8 }}>
+            {playing.title}
+          </div>
+          <p className="subtle" style={{ marginBottom: 16 }}>
+            Enter your name to start the timer and join the leaderboard.
+          </p>
+          <form
+            className="solverGateForm"
+            onSubmit={(e) => {
+              e.preventDefault();
+              beginWithName();
+            }}
+          >
+            <label className="loginField">
+              <span className="fieldLabel">Your name</span>
+              <input
+                type="text"
+                value={nameDraft}
+                onChange={(e) => setNameDraft(e.target.value)}
+                autoFocus
+                maxLength={64}
+                placeholder="e.g. Alex"
+              />
+            </label>
+            <button type="submit" className="btn btnPrimary" disabled={!nameDraft.trim()}>
+              Start
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  if (playing && solverName) {
+    return (
+      <CrosswordPlayer puzzle={playing} solverName={solverName} onChangeName={openChangeName} />
+    );
   }
 
   return (

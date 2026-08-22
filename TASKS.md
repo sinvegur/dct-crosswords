@@ -32,7 +32,7 @@ Scope: `CrosswordPlayer.tsx`, `PuzzleDesigner.tsx` only.
 
 ---
 
-## T018 — [TODO] Solver flow: name capture, live timer, leaderboard submission and results screen
+## T018 — [READY FOR REVIEW] Solver flow: name capture, live timer, leaderboard submission and results screen
 
 **No new SQL needed for this one** — the `attempts` table and its RLS policies (public read, public insert) were already set up in the original schema and haven't changed. This is entirely app-code work: `src/lib/storage.ts`, `App.tsx`'s `PlayPage`, and `CrosswordPlayer.tsx`.
 

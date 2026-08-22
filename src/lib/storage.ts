@@ -153,3 +153,72 @@ export async function deletePuzzle(id: string): Promise<void> {
   const { error } = await supabase.from('puzzles').delete().eq('id', id);
   if (error) throw error;
 }
+
+export type LeaderboardEntry = {
+  id: string;
+  solverName: string;
+  elapsedMs: number;
+  completedAtISO: string;
+};
+
+type AttemptRow = {
+  id: string;
+  solver_name: string;
+  elapsed_ms: number;
+  completed_at: string;
+};
+
+function rowToLeaderboardEntry(row: AttemptRow): LeaderboardEntry {
+  return {
+    id: row.id,
+    solverName: row.solver_name,
+    elapsedMs: row.elapsed_ms,
+    completedAtISO: row.completed_at,
+  };
+}
+
+export async function submitAttempt({
+  puzzleId,
+  solverName,
+  elapsedMs,
+}: {
+  puzzleId: string;
+  solverName: string;
+  elapsedMs: number;
+}): Promise<string> {
+  const { data, error } = await supabase
+    .from('attempts')
+    .insert({
+      puzzle_id: puzzleId,
+      solver_name: solverName.trim(),
+      elapsed_ms: Math.round(elapsedMs),
+    })
+    .select('id')
+    .single();
+
+  if (error) throw error;
+  return (data as { id: string }).id;
+}
+
+export async function getLeaderboard(puzzleId: string, limit = 10): Promise<LeaderboardEntry[]> {
+  const { data, error } = await supabase
+    .from('attempts')
+    .select('id, solver_name, elapsed_ms, completed_at')
+    .eq('puzzle_id', puzzleId)
+    .order('elapsed_ms', { ascending: true })
+    .limit(limit);
+
+  if (error) throw error;
+  return (data as AttemptRow[] | null)?.map(rowToLeaderboardEntry) ?? [];
+}
+
+export async function getAttemptRank(puzzleId: string, elapsedMs: number): Promise<number> {
+  const { count, error } = await supabase
+    .from('attempts')
+    .select('*', { count: 'exact', head: true })
+    .eq('puzzle_id', puzzleId)
+    .lt('elapsed_ms', Math.round(elapsedMs));
+
+  if (error) throw error;
+  return (count ?? 0) + 1;
+}

@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Puzzle15 } from './types';
 import { SIZE_15, type Direction, computeEntries15 } from './engine';
+import {
+  getAttemptRank,
+  getLeaderboard,
+  submitAttempt,
+  type LeaderboardEntry,
+} from '@/lib/storage';
+
+const SOLVER_NAME_KEY = 'dct-crosswords:solverName';
 
 function idxOf(row: number, col: number) {
   return row * SIZE_15 + col;
@@ -15,14 +23,28 @@ function keyOf(row: number, col: number) {
 }
 
 function normalizeLetter(raw: string) {
-  // Take the last typed character (handles cases like IME/paste).
   const trimmed = raw.replace(/\s+/g, '');
   if (!trimmed) return '';
   const ch = trimmed[trimmed.length - 1];
   return ch.toLocaleUpperCase('tr-TR');
 }
 
-export function CrosswordPlayer({ puzzle }: { puzzle: Puzzle15 }) {
+export function formatElapsedMs(ms: number): string {
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  return `${min}:${sec.toString().padStart(2, '0')}`;
+}
+
+export { SOLVER_NAME_KEY };
+
+type Props = {
+  puzzle: Puzzle15;
+  solverName: string;
+  onChangeName?: () => void;
+};
+
+export function CrosswordPlayer({ puzzle, solverName, onChangeName }: Props) {
   const computed = useMemo(() => computeEntries15(puzzle.solutionGrid), [puzzle.id]);
   const solutionChars = useMemo(() => puzzle.solutionGrid.flatMap((r) => r.split('')), [puzzle.solutionGrid]);
 
@@ -36,8 +58,9 @@ export function CrosswordPlayer({ puzzle }: { puzzle: Puzzle15 }) {
 
   const [filled, setFilled] = useState<string[]>(() => Array.from({ length: SIZE_15 * SIZE_15 }, () => ''));
 
+  const submittedRef = useRef(false);
+
   useEffect(() => {
-    // Reset when puzzle changes.
     setFilled(Array.from({ length: SIZE_15 * SIZE_15 }, () => ''));
     setActiveCellIndex(null);
     setActiveDirection('across');
@@ -45,6 +68,12 @@ export function CrosswordPlayer({ puzzle }: { puzzle: Puzzle15 }) {
     setStartAtMs(null);
     setSolved(false);
     setElapsedMs(null);
+    setTickNowMs(Date.now());
+    setLeaderboard([]);
+    setUserRank(null);
+    setAttemptId(null);
+    setSubmitError(null);
+    submittedRef.current = false;
   }, [puzzle.id]);
 
   const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
@@ -64,8 +93,15 @@ export function CrosswordPlayer({ puzzle }: { puzzle: Puzzle15 }) {
   }, [activeEntry]);
 
   const [startAtMs, setStartAtMs] = useState<number | null>(null);
+  const [tickNowMs, setTickNowMs] = useState(() => Date.now());
   const [elapsedMs, setElapsedMs] = useState<number | null>(null);
   const [solved, setSolved] = useState(false);
+
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [userRank, setUserRank] = useState<number | null>(null);
+  const [attemptId, setAttemptId] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [resultsLoading, setResultsLoading] = useState(false);
 
   const [bestTimeMs, setBestTimeMs] = useState<number | null>(null);
 
@@ -77,6 +113,52 @@ export function CrosswordPlayer({ puzzle }: { puzzle: Puzzle15 }) {
     if (!Number.isFinite(parsed) || parsed <= 0) return;
     setBestTimeMs(parsed);
   }, [puzzle.id]);
+
+  useEffect(() => {
+    if (startAtMs == null || solved) return;
+    const id = window.setInterval(() => setTickNowMs(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [startAtMs, solved]);
+
+  const liveElapsedMs =
+    startAtMs != null && !solved ? tickNowMs - startAtMs : elapsedMs;
+
+  useEffect(() => {
+    if (!solved || elapsedMs == null || submittedRef.current) return;
+    submittedRef.current = true;
+
+    let cancelled = false;
+    setResultsLoading(true);
+    setSubmitError(null);
+
+    void (async () => {
+      try {
+        const id = await submitAttempt({
+          puzzleId: puzzle.id,
+          solverName,
+          elapsedMs,
+        });
+        const [board, rank] = await Promise.all([
+          getLeaderboard(puzzle.id),
+          getAttemptRank(puzzle.id, elapsedMs),
+        ]);
+        if (cancelled) return;
+        setAttemptId(id);
+        setLeaderboard(board);
+        setUserRank(rank);
+      } catch (err) {
+        if (cancelled) return;
+        submittedRef.current = false;
+        setSubmitError(err instanceof Error ? err.message : String(err));
+      } finally {
+        if (!cancelled) setResultsLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [solved, elapsedMs, puzzle.id, solverName]);
 
   const checkSolved = (nextFilled: string[]) => {
     for (let i = 0; i < solutionChars.length; i++) {
@@ -178,6 +260,7 @@ export function CrosswordPlayer({ puzzle }: { puzzle: Puzzle15 }) {
     const elapsed = Date.now() - startAtMs;
     setSolved(true);
     setElapsedMs(elapsed);
+    setTickNowMs(Date.now());
 
     const key = `dct-crosswords:bestTime:${puzzle.id}`;
     const prevRaw = localStorage.getItem(key);
@@ -189,9 +272,9 @@ export function CrosswordPlayer({ puzzle }: { puzzle: Puzzle15 }) {
   };
 
   const onCellInputChange = (cellIndex: number, raw: string) => {
+    if (solved) return;
     if (blockSet.has(cellIndex)) return;
     if (!activeEntry) {
-      // User typed before selecting an entry; pick based on activeDirection membership.
       handlePickCell(cellIndex);
     }
 
@@ -218,6 +301,10 @@ export function CrosswordPlayer({ puzzle }: { puzzle: Puzzle15 }) {
     }
   };
 
+  const userOnLeaderboard = attemptId != null && leaderboard.some((e) => e.id === attemptId);
+  const showRankOutsideTop =
+    userRank != null && leaderboard.length > 0 && !userOnLeaderboard;
+
   return (
     <div className="layout">
       <div className="panel">
@@ -226,7 +313,7 @@ export function CrosswordPlayer({ puzzle }: { puzzle: Puzzle15 }) {
           <div className="directionBlock">
             <div className="directionHeader">
               <span>ACROSS</span>
-              <button className="btn" onClick={toggleDirectionForActiveCell} disabled={activeCellIndex == null}>
+              <button className="btn" onClick={toggleDirectionForActiveCell} disabled={activeCellIndex == null || solved}>
                 Toggle (SPACE)
               </button>
             </div>
@@ -246,8 +333,7 @@ export function CrosswordPlayer({ puzzle }: { puzzle: Puzzle15 }) {
             <div className="directionHeader">
               <span>DOWN</span>
               <span className="hint">
-                {elapsedMs != null ? `Solved in ${Math.round(elapsedMs / 1000)}s` : ''}
-                {bestTimeMs != null && elapsedMs == null ? `Best: ${Math.round(bestTimeMs / 1000)}s` : ''}
+                {bestTimeMs != null && !solved ? `Best: ${formatElapsedMs(bestTimeMs)}` : ''}
               </span>
             </div>
             {computed.entriesDown.map((e) => {
@@ -270,104 +356,163 @@ export function CrosswordPlayer({ puzzle }: { puzzle: Puzzle15 }) {
             <div className="title" style={{ fontSize: 16 }}>
               {puzzle.title}
             </div>
-            <div className="subtle">
-              Click a cell, type letters (Turkish uppercase). Toggle direction with `SPACE`.
+            <div className="subtle solverMeta">
+              <span>Solving as {solverName}</span>
+              {onChangeName ? (
+                <>
+                  {' · '}
+                  <button type="button" className="linkButton" onClick={onChangeName}>
+                    Not you? Change name
+                  </button>
+                </>
+              ) : null}
             </div>
           </div>
           <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
-            <div className="subtle">Active: {activeEntry ? `${activeDirection.toUpperCase()} ${activeEntry.number}` : '—'}</div>
+            <div className="solverTimer" aria-live="polite">
+              {liveElapsedMs != null ? formatElapsedMs(liveElapsedMs) : '0:00'}
+            </div>
+            {!solved ? (
+              <div className="subtle">
+                Active: {activeEntry ? `${activeDirection.toUpperCase()} ${activeEntry.number}` : '—'}
+              </div>
+            ) : null}
           </div>
         </div>
 
-        <div className="gridWrap">
-          <div
-            className="grid"
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.code === 'Space') {
-                e.preventDefault();
-                toggleDirectionForActiveCell();
-              }
-            }}
-          >
-            {Array.from({ length: SIZE_15 * SIZE_15 }, (_, cellIndex) => {
-              const { row, col } = posOf(cellIndex);
-              const char = solutionChars[cellIndex];
-              const numAtCell = computed.cellNumber[row][col];
-              if (char === '#') {
-                return <div key={cellIndex} className="cell block" />;
-              }
-
-              const value = filled[cellIndex] ?? '';
-              const isActiveCell = activeEntryCellIndices.has(cellIndex);
-
-              return (
-                <div
-                  key={cellIndex}
-                  className={`cell ${isActiveCell ? 'cellActive' : ''}`}
-                  onClick={() => handlePickCell(cellIndex)}
-                >
-                  {numAtCell != null ? <div className="cellNumber">{numAtCell}</div> : null}
-                  <input
-                    ref={(el) => {
-                      inputsRef.current[cellIndex] = el;
-                    }}
-                    value={value}
-                    maxLength={1}
-                    inputMode="text"
-                    autoCorrect="off"
-                    spellCheck={false}
-                    onFocus={() => handlePickCell(cellIndex)}
-                    onChange={(e) => onCellInputChange(cellIndex, e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.code === 'Space') {
-                        e.preventDefault();
-                        toggleDirectionForActiveCell();
-                        return;
-                      }
-                      if (e.key === 'Backspace') {
-                        if (filled[cellIndex]) {
-                          // Let onChange clear current + move prev.
-                          return;
-                        }
-                        // Empty cell: onChange won't fire — clear previous + move.
-                        e.preventDefault();
-                        const entry =
-                          activeDirection === 'across'
-                            ? computed.entriesAcross.find((en) => en.number === activeEntryNumber)
-                            : computed.entriesDown.find((en) => en.number === activeEntryNumber);
-                        if (!entry) return;
-                        const indices = entry.cells.map((c) => idxOf(c.row, c.col));
-                        const pos = indices.indexOf(cellIndex);
-                        if (pos <= 0) return;
-                        const prev = indices[pos - 1];
-                        const nextFilled = filled.slice();
-                        nextFilled[prev] = '';
-                        setFilled(nextFilled);
-                        focusCell(prev);
-                        setActiveCellIndex(prev);
-                        return;
-                      }
-                      if (e.key === 'Escape') {
-                        (e.target as HTMLInputElement).blur();
-                      }
-                    }}
-                  />
-                </div>
-              );
-            })}
-          </div>
-
-          {solved && elapsedMs != null ? (
-            <div style={{ marginTop: 12, padding: 12 }}>
+        {solved ? (
+          <div className="solverResults">
+            <div className="solverResultsHeader">
+              <div className="title">Solved!</div>
               <div className="subtle">
-                Solved! Time: <b>{Math.round(elapsedMs / 1000)}s</b>
+                Your time: <strong>{elapsedMs != null ? formatElapsedMs(elapsedMs) : '—'}</strong>
               </div>
             </div>
-          ) : null}
-        </div>
+
+            {submitError ? <p className="loginError">{submitError}</p> : null}
+
+            <div className="panelHeader" style={{ borderTop: '1px solid var(--border)' }}>
+              Leaderboard
+            </div>
+
+            {resultsLoading ? (
+              <div className="emptyState">
+                <p className="subtle">Loading results…</p>
+              </div>
+            ) : leaderboard.length === 0 ? (
+              <div className="emptyState">
+                <p className="subtle">No times yet — you&apos;re first!</p>
+              </div>
+            ) : (
+              <ol className="leaderboardList">
+                {leaderboard.map((entry, index) => {
+                  const isYou = entry.id === attemptId;
+                  return (
+                    <li
+                      key={entry.id}
+                      className={`leaderboardRow ${isYou ? 'leaderboardRowYou' : ''}`}
+                    >
+                      <span className="leaderboardRank">{index + 1}</span>
+                      <span className="leaderboardName">
+                        {entry.solverName}
+                        {isYou ? ' (you)' : ''}
+                      </span>
+                      <span className="leaderboardTime">{formatElapsedMs(entry.elapsedMs)}</span>
+                    </li>
+                  );
+                })}
+              </ol>
+            )}
+
+            {showRankOutsideTop && elapsedMs != null ? (
+              <div className="leaderboardYouOutside subtle">
+                You: {formatElapsedMs(elapsedMs)} · Rank #{userRank}
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <div className="gridWrap">
+            <div className="subtle" style={{ marginBottom: 8 }}>
+              Click a cell, type letters (Turkish uppercase). Toggle direction with `SPACE`.
+            </div>
+            <div
+              className="grid"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.code === 'Space') {
+                  e.preventDefault();
+                  toggleDirectionForActiveCell();
+                }
+              }}
+            >
+              {Array.from({ length: SIZE_15 * SIZE_15 }, (_, cellIndex) => {
+                const { row, col } = posOf(cellIndex);
+                const char = solutionChars[cellIndex];
+                const numAtCell = computed.cellNumber[row][col];
+                if (char === '#') {
+                  return <div key={cellIndex} className="cell block" />;
+                }
+
+                const value = filled[cellIndex] ?? '';
+                const isActiveCell = activeEntryCellIndices.has(cellIndex);
+
+                return (
+                  <div
+                    key={cellIndex}
+                    className={`cell ${isActiveCell ? 'cellActive' : ''}`}
+                    onClick={() => handlePickCell(cellIndex)}
+                  >
+                    {numAtCell != null ? <div className="cellNumber">{numAtCell}</div> : null}
+                    <input
+                      ref={(el) => {
+                        inputsRef.current[cellIndex] = el;
+                      }}
+                      value={value}
+                      maxLength={1}
+                      inputMode="text"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      onFocus={() => handlePickCell(cellIndex)}
+                      onChange={(e) => onCellInputChange(cellIndex, e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.code === 'Space') {
+                          e.preventDefault();
+                          toggleDirectionForActiveCell();
+                          return;
+                        }
+                        if (e.key === 'Backspace') {
+                          if (filled[cellIndex]) {
+                            return;
+                          }
+                          e.preventDefault();
+                          const entry =
+                            activeDirection === 'across'
+                              ? computed.entriesAcross.find((en) => en.number === activeEntryNumber)
+                              : computed.entriesDown.find((en) => en.number === activeEntryNumber);
+                          if (!entry) return;
+                          const indices = entry.cells.map((c) => idxOf(c.row, c.col));
+                          const pos = indices.indexOf(cellIndex);
+                          if (pos <= 0) return;
+                          const prev = indices[pos - 1];
+                          const nextFilled = filled.slice();
+                          nextFilled[prev] = '';
+                          setFilled(nextFilled);
+                          focusCell(prev);
+                          setActiveCellIndex(prev);
+                          return;
+                        }
+                        if (e.key === 'Escape') {
+                          (e.target as HTMLInputElement).blur();
+                        }
+                      }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
-
