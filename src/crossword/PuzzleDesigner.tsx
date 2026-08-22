@@ -1,7 +1,7 @@
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Grid2x2, PencilLine, Shuffle } from 'lucide-react';
-import { SIZE_15, computeEntries15, type Direction } from './engine';
-import type { Puzzle15 } from './types';
+import { ShuffleConfirmModal } from '@/components/ShuffleConfirmModal';
+import { UnsavedChangesModal } from '@/components/UnsavedChangesModal';
 import {
   TEMPLATES_15,
   mirrorPos,
@@ -9,7 +9,9 @@ import {
   type StartingGridId,
   type Template15,
 } from '@/data/templates';
-import { ShuffleConfirmModal } from '@/components/ShuffleConfirmModal';
+import { registerGuard, runGuarded, unregisterGuard } from '@/lib/navigationGuard';
+import { SIZE_15, computeEntries15, type Direction } from './engine';
+import type { Puzzle15 } from './types';
 
 const TOOLBAR_ICON_SIZE = 16;
 
@@ -33,6 +35,44 @@ function gridFromRows(rows: string[]): string[] {
 
 function rowsToFlat(rows: string[]): string[] {
   return rows.flatMap((r) => r.split(''));
+}
+
+type DesignerSnapshot = {
+  title: string;
+  rows: string[];
+  cluesAcross: Record<number, string>;
+  cluesDown: Record<number, string>;
+};
+
+function initialRows(initial?: Puzzle15, startingTemplate?: Template15): string[] {
+  if (initial?.solutionGrid) return initial.solutionGrid;
+  if (startingTemplate) return templateToEmptySolution(startingTemplate);
+  return Array.from({ length: SIZE_15 }, () => ' '.repeat(SIZE_15));
+}
+
+function snapshotFromState(
+  title: string,
+  rows: string[],
+  cluesAcross: Record<number, string>,
+  cluesDown: Record<number, string>,
+): DesignerSnapshot {
+  return {
+    title,
+    rows: [...rows],
+    cluesAcross: { ...cluesAcross },
+    cluesDown: { ...cluesDown },
+  };
+}
+
+function snapshotsEqual(a: DesignerSnapshot, b: DesignerSnapshot): boolean {
+  if (a.title !== b.title) return false;
+  if (a.rows.length !== b.rows.length) return false;
+  for (let i = 0; i < a.rows.length; i++) {
+    if (a.rows[i] !== b.rows[i]) return false;
+  }
+  if (JSON.stringify(a.cluesAcross) !== JSON.stringify(b.cluesAcross)) return false;
+  if (JSON.stringify(a.cluesDown) !== JSON.stringify(b.cluesDown)) return false;
+  return true;
 }
 
 function hasDesignerProgress(
@@ -72,12 +112,17 @@ type Props = {
 };
 
 export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }: Props) {
+  const baselineRef = useRef<DesignerSnapshot>(
+    snapshotFromState(
+      initial?.title ?? 'New puzzle',
+      initialRows(initial, startingTemplate),
+      initial?.clues.across ?? {},
+      initial?.clues.down ?? {},
+    ),
+  );
+
   const [title, setTitle] = useState(initial?.title ?? 'New puzzle');
-  const [rows, setRows] = useState<string[]>(() => {
-    if (initial?.solutionGrid) return initial.solutionGrid;
-    if (startingTemplate) return templateToEmptySolution(startingTemplate);
-    return Array.from({ length: SIZE_15 }, () => ' '.repeat(SIZE_15));
-  });
+  const [rows, setRows] = useState<string[]>(() => initialRows(initial, startingTemplate));
 
   const [editMode, setEditMode] = useState<EditMode>(() =>
     startingTemplate?.id === 'blank' ? 'block' : 'letter',
@@ -89,6 +134,8 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
     () => (startingTemplate && startingTemplate.id !== 'blank' ? startingTemplate.id : null),
   );
   const [shuffleConfirmOpen, setShuffleConfirmOpen] = useState(false);
+  const [unsavedModalOpen, setUnsavedModalOpen] = useState(false);
+  const pendingProceedRef = useRef<(() => void) | null>(null);
 
   const [activeDirection, setActiveDirection] = useState<Direction>('across');
   const [activeEntryNumber, setActiveEntryNumber] = useState<number | null>(null);
@@ -269,6 +316,44 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
   const alreadyPublished = initial?.status === 'published';
   const [saving, setSaving] = useState(false);
 
+  const isDirty = useMemo(
+    () =>
+      !snapshotsEqual(
+        snapshotFromState(title, rows, cluesAcross, cluesDown),
+        baselineRef.current,
+      ),
+    [title, rows, cluesAcross, cluesDown],
+  );
+
+  const isDirtyRef = useRef(isDirty);
+  isDirtyRef.current = isDirty;
+
+  const updateBaseline = useCallback(() => {
+    baselineRef.current = snapshotFromState(title, rows, cluesAcross, cluesDown);
+  }, [title, rows, cluesAcross, cluesDown]);
+
+  useEffect(() => {
+    registerGuard((proceed) => {
+      if (!isDirtyRef.current) {
+        proceed();
+        return;
+      }
+      pendingProceedRef.current = proceed;
+      setUnsavedModalOpen(true);
+    });
+    return unregisterGuard;
+  }, []);
+
+  useEffect(() => {
+    if (!isDirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isDirty]);
+
   const buildPuzzle = (status: 'draft' | 'published'): Puzzle15 | null => {
     if (status === 'published' && !canPublish) return null;
 
@@ -305,6 +390,30 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
     setSaving(true);
     try {
       await onSaved(puzzle);
+      updateBaseline();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDiscardChanges = () => {
+    const proceed = pendingProceedRef.current;
+    pendingProceedRef.current = null;
+    setUnsavedModalOpen(false);
+    proceed?.();
+  };
+
+  const handleSaveDraftAndLeave = async () => {
+    const proceed = pendingProceedRef.current;
+    const puzzle = buildPuzzle('draft');
+    if (!puzzle) return;
+    setSaving(true);
+    try {
+      await onSaved(puzzle);
+      updateBaseline();
+      pendingProceedRef.current = null;
+      setUnsavedModalOpen(false);
+      proceed?.();
     } finally {
       setSaving(false);
     }
@@ -420,7 +529,12 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
             </div>
           </div>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button type="button" className="btn" onClick={onCancel} disabled={saving}>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => runGuarded(onCancel)}
+              disabled={saving}
+            >
               Cancel
             </button>
             {alreadyPublished ? (
@@ -592,6 +706,17 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
           </div>
         </div>
       </div>
+
+      <UnsavedChangesModal
+        open={unsavedModalOpen}
+        saving={saving}
+        onKeepEditing={() => {
+          pendingProceedRef.current = null;
+          setUnsavedModalOpen(false);
+        }}
+        onDiscard={handleDiscardChanges}
+        onSaveDraftAndLeave={() => void handleSaveDraftAndLeave()}
+      />
 
       <ShuffleConfirmModal
         open={shuffleConfirmOpen}
