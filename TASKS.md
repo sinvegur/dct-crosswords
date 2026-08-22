@@ -30,3 +30,24 @@ Both `CrosswordPlayer.tsx` (button labeled "Toggle (SPACE)", in the ACROSS `dire
 
 Scope: `CrosswordPlayer.tsx`, `PuzzleDesigner.tsx` only.
 
+---
+
+## T019 — [TODO] Three small fixes from testing T018: timer start, gate form width, publish-success modal
+
+Three independent fixes, bundled since they're all small — treat them as separate concerns, don't let fixing one bleed into another.
+
+**1. Timer should start the moment the puzzle becomes visible, not on first keystroke.** In `CrosswordPlayer.tsx`, `startAtMs` currently only gets set inside `onCellInputChange` (`if (startAtMs == null) setStartAtMs(Date.now());`, ~line 288) — meaning a solver can read every clue for as long as they want before the clock starts, which isn't the intended timed-puzzle behavior (NYT-style timers start when you open the puzzle, not when you type your first letter). Fix:
+   - Initialize `startAtMs` to `Date.now()` immediately (e.g. `useState(() => Date.now())`) instead of `null`.
+   - In the existing "reset when puzzle changes" effect (`useEffect(..., [puzzle.id])`), also reset it to `Date.now()` instead of `null` — a new puzzle instance should start its own clock immediately too.
+   - Remove the now-unnecessary `if (startAtMs == null) setStartAtMs(Date.now())` line inside `onCellInputChange`.
+   - Since `startAtMs` is now always set once the component is mounted, the timer-ticking effect's `startAtMs == null` check can simplify accordingly (up to you whether you keep `startAtMs` typed as nullable for safety or simplify the type — either is fine, just make sure the behavior is "clock starts on mount/name-gate-dismissal, not on first letter").
+
+**2. Solver name-gate form: button width doesn't match the input width.** In `.solverGateForm` (`styles.css`), the input has `width: 100%` but the "Start" submit button doesn't, so it renders much narrower than the input above it — inconsistent, looks unfinished. Give the button `width: 100%` too (e.g. `.solverGateForm button { width: 100%; }` or similar scoped selector) so both elements span the same width.
+
+**3. Publish success: show a congratulations modal with a copyable share link**, instead of silently dropping the creator back on the puzzles list. This should trigger specifically when the **Publish** button is used (not "Save draft," not "Save changes" on an already-published puzzle) — since "Publish" only ever appears for a not-yet-published puzzle, clicking it is always a genuine "this is now live" moment.
+   - `PuzzleDesigner`'s `onSaved` callback needs to communicate *which* action was taken. Change its signature to include that (e.g. `onSaved: (puzzle: Puzzle15, action: 'draft' | 'published') => void | Promise<void>`), passed from the existing `handleSave(status)` / `handleSaveDraftAndLeave` call sites.
+   - In `App.tsx`'s `handleSaved`, **capture the return value of `savePuzzle(puzzle)`** (it already returns the saved row, including the real server-assigned `slug` — currently the return value is discarded, which is why this wasn't possible before) and use *that* for the link, not the input puzzle (a brand-new puzzle won't have a real slug until after the insert).
+   - When the action was `'published'`, show a modal (same existing modal CSS conventions) — congratulatory tone, puzzle title, the **full absolute shareable URL** (`${window.location.origin}/p/${slug}` — not just the relative path, it needs to be pasteable into a text message), a "Copy link" button using the Clipboard API with some brief visual confirmation it copied (e.g. button text changes to "Copied!" for a moment), and a way to close/continue back to the puzzles list.
+
+Scope: `CrosswordPlayer.tsx`, `PuzzleDesigner.tsx`, `App.tsx`, `styles.css`, one new modal component for item 3.
+
