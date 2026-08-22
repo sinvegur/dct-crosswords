@@ -65,7 +65,7 @@ export function CrosswordPlayer({ puzzle, solverName, onChangeName }: Props) {
     setActiveCellIndex(null);
     setActiveDirection('across');
     setActiveEntryNumber(null);
-    setStartAtMs(null);
+    setStartAtMs(Date.now());
     setSolved(false);
     setElapsedMs(null);
     setTickNowMs(Date.now());
@@ -92,7 +92,7 @@ export function CrosswordPlayer({ puzzle, solverName, onChangeName }: Props) {
     return new Set(activeEntry.cells.map((c) => idxOf(c.row, c.col)));
   }, [activeEntry]);
 
-  const [startAtMs, setStartAtMs] = useState<number | null>(null);
+  const [startAtMs, setStartAtMs] = useState(() => Date.now());
   const [tickNowMs, setTickNowMs] = useState(() => Date.now());
   const [elapsedMs, setElapsedMs] = useState<number | null>(null);
   const [solved, setSolved] = useState(false);
@@ -115,13 +115,12 @@ export function CrosswordPlayer({ puzzle, solverName, onChangeName }: Props) {
   }, [puzzle.id]);
 
   useEffect(() => {
-    if (startAtMs == null || solved) return;
+    if (solved) return;
     const id = window.setInterval(() => setTickNowMs(Date.now()), 1000);
     return () => window.clearInterval(id);
-  }, [startAtMs, solved]);
+  }, [solved]);
 
-  const liveElapsedMs =
-    startAtMs != null && !solved ? tickNowMs - startAtMs : elapsedMs;
+  const liveElapsedMs = !solved ? tickNowMs - startAtMs : elapsedMs;
 
   useEffect(() => {
     if (!solved || elapsedMs == null || submittedRef.current) return;
@@ -254,7 +253,6 @@ export function CrosswordPlayer({ puzzle, solverName, onChangeName }: Props) {
 
   const finishIfSolved = (nextFilled: string[]) => {
     if (solved) return;
-    if (!startAtMs) return;
     if (!checkSolved(nextFilled)) return;
 
     const elapsed = Date.now() - startAtMs;
@@ -285,7 +283,6 @@ export function CrosswordPlayer({ puzzle, solverName, onChangeName }: Props) {
       next[cellIndex] = '';
     } else {
       next[cellIndex] = letter;
-      if (startAtMs == null) setStartAtMs(Date.now());
     }
 
     setFilled(next);
@@ -370,7 +367,7 @@ export function CrosswordPlayer({ puzzle, solverName, onChangeName }: Props) {
           </div>
           <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
             <div className="solverTimer" aria-live="polite">
-              {liveElapsedMs != null ? formatElapsedMs(liveElapsedMs) : '0:00'}
+              {formatElapsedMs(liveElapsedMs ?? tickNowMs - startAtMs)}
             </div>
             {!solved ? (
               <div className="subtle">

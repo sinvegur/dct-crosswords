@@ -107,7 +107,7 @@ type Props = {
   initial?: Puzzle15;
   /** Starting layout when creating a new puzzle (from the modal). */
   startingTemplate?: Template15;
-  onSaved: (puzzle: Puzzle15) => void | Promise<void>;
+  onSaved: (puzzle: Puzzle15, action: 'draft' | 'published') => void | Promise<void>;
   onCancel: () => void;
 };
 
@@ -389,7 +389,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
     if (!puzzle) return;
     setSaving(true);
     try {
-      await onSaved(puzzle);
+      await onSaved(puzzle, status);
       updateBaseline();
     } finally {
       setSaving(false);
@@ -409,7 +409,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
     if (!puzzle) return;
     setSaving(true);
     try {
-      await onSaved(puzzle);
+      await onSaved(puzzle, 'draft');
       updateBaseline();
       pendingProceedRef.current = null;
       setUnsavedModalOpen(false);

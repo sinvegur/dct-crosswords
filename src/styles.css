@@ -416,6 +416,10 @@ textarea {
   width: 100%;
 }
 
+.solverGateForm button {
+  width: 100%;
+}
+
 .solverMeta {
   margin-top: 4px;
 }
@@ -660,6 +664,19 @@ textarea {
   gap: 8px;
   padding: 14px 18px;
   border-top: 1px solid var(--border);
+}
+
+.shareLinkBox {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #f9fafb;
+  overflow-x: auto;
+}
+
+.shareLinkText {
+  font-size: 13px;
+  word-break: break-all;
 }
 
 .templateCards {

@@ -12,6 +12,7 @@ import { CrosswordPlayer, SOLVER_NAME_KEY } from '@/crossword/CrosswordPlayer';
 import { PuzzleDesigner } from '@/crossword/PuzzleDesigner';
 import { StartingGridModal } from '@/components/StartingGridModal';
 import { DeletePuzzleConfirmModal } from '@/components/DeletePuzzleConfirmModal';
+import { PublishSuccessModal } from '@/components/PublishSuccessModal';
 import {
   AuthProvider,
   CreatorLogin,
@@ -43,6 +44,10 @@ function AppShell() {
   const [listError, setListError] = useState<string | null>(null);
   const [startingTemplate, setStartingTemplate] = useState<Template15 | undefined>(undefined);
   const [gridModalOpen, setGridModalOpen] = useState(false);
+  const [publishSuccess, setPublishSuccess] = useState<{
+    title: string;
+    shareUrl: string;
+  } | null>(null);
 
   const refresh = useCallback(async () => {
     setListError(null);
@@ -93,15 +98,21 @@ function AppShell() {
     });
   }, [navigate]);
 
-  const handleSaved = async (puzzle: Puzzle15) => {
+  const handleSaved = async (puzzle: Puzzle15, action: 'draft' | 'published') => {
     try {
-      await savePuzzle(puzzle);
+      const saved = await savePuzzle(puzzle);
       await refresh();
       // Leave design before clearing template — otherwise DesignNewPage's
       // "no template" effect would reopen the starting-grid modal.
       navigate('/');
       setStartingTemplate(undefined);
       setGridModalOpen(false);
+      if (action === 'published' && saved.slug) {
+        setPublishSuccess({
+          title: saved.title,
+          shareUrl: `${window.location.origin}/p/${saved.slug}`,
+        });
+      }
     } catch (err) {
       alert(`Could not save puzzle: ${errorMessage(err)}`);
       throw err;
@@ -212,6 +223,13 @@ function AppShell() {
           setGridModalOpen(false);
           navigate('/design');
         }}
+      />
+
+      <PublishSuccessModal
+        open={publishSuccess != null}
+        puzzleTitle={publishSuccess?.title ?? ''}
+        shareUrl={publishSuccess?.shareUrl ?? ''}
+        onClose={() => setPublishSuccess(null)}
       />
     </div>
   );
@@ -352,7 +370,7 @@ function DesignNewPage({
   setGridModalOpen: (open: boolean) => void;
   setStartingTemplate: (t: Template15 | undefined) => void;
   onCancel: () => void;
-  onSaved: (puzzle: Puzzle15) => void | Promise<void>;
+  onSaved: (puzzle: Puzzle15, action: 'draft' | 'published') => void | Promise<void>;
 }) {
   // Open the template picker once when entering new-design without a template.
   // Do NOT depend on startingTemplate/gridModalOpen — clearing the template on
@@ -390,7 +408,7 @@ function DesignEditPage({
   puzzles: Puzzle15[];
   listLoading: boolean;
   onCancel: () => void;
-  onSaved: (puzzle: Puzzle15) => void | Promise<void>;
+  onSaved: (puzzle: Puzzle15, action: 'draft' | 'published') => void | Promise<void>;
 }) {
   const { id } = useParams<{ id: string }>();
   const fromList = useMemo(() => puzzles.find((p) => p.id === id), [puzzles, id]);

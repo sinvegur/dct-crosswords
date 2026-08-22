@@ -32,7 +32,7 @@ Scope: `CrosswordPlayer.tsx`, `PuzzleDesigner.tsx` only.
 
 ---
 
-## T019 — [TODO] Three small fixes from testing T018: timer start, gate form width, publish-success modal
+## T019 — [READY FOR REVIEW] Three small fixes from testing T018: timer start, gate form width, publish-success modal
 
 Three independent fixes, bundled since they're all small — treat them as separate concerns, don't let fixing one bleed into another.
 
