@@ -32,7 +32,7 @@ Scope: `CrosswordPlayer.tsx`, `PuzzleDesigner.tsx` only.
 
 ---
 
-## T017 — [TODO] Replace native `confirm()` on puzzle delete with a proper modal
+## T017 — [READY FOR REVIEW] Replace native `confirm()` on puzzle delete with a proper modal
 
 `HomePage`'s Delete button (`App.tsx`) still uses the browser's native `confirm("Delete \"${p.title}\"?")` — flagged as inconsistent back during T004's review and never actually fixed. Replace it with a styled modal matching the app's existing pattern (`ShuffleConfirmModal`, `UnsavedChangesModal`) — same `.modalOverlay`/`.modal`/`.modalHeader`/`.modalTitle`/`.modalClose`/`.modalFooter` CSS, not a new visual language.
 
