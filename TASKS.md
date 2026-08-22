@@ -32,7 +32,7 @@ Scope: `CrosswordPlayer.tsx`, `PuzzleDesigner.tsx` only.
 
 ---
 
-## T016 — [TODO] Confirm before losing unsaved changes in the designer
+## T016 — [READY FOR REVIEW] Confirm before losing unsaved changes in the designer
 
 **The exit points that currently navigate away with zero warning, even with unsaved edits**: the logo (→ home), the "Puzzles" nav button, "Sign out", the "New puzzle" button, and `PuzzleDesigner`'s own "Cancel" button. All of these need to check for unsaved changes first and, if any exist, show a confirmation modal offering: **Keep editing** (stay, do nothing) / **Discard changes** (proceed with the original action, dropping edits) / **Save draft & leave** (save as draft, then proceed with the original action).
 

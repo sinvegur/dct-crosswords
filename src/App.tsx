@@ -26,6 +26,7 @@ import {
   listPuzzles,
   savePuzzle,
 } from '@/lib/storage';
+import { runGuarded } from '@/lib/navigationGuard';
 
 function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
@@ -76,15 +77,19 @@ function AppShell() {
     location.pathname === '/design' || (gridModalOpen && !location.pathname.startsWith('/design/'));
 
   const goHome = () => {
-    setStartingTemplate(undefined);
-    setGridModalOpen(false);
-    void refresh().finally(() => navigate('/'));
+    runGuarded(() => {
+      setStartingTemplate(undefined);
+      setGridModalOpen(false);
+      void refresh().finally(() => navigate('/'));
+    });
   };
 
   const openNewPuzzleModal = useCallback(() => {
-    setStartingTemplate(undefined);
-    setGridModalOpen(true);
-    navigate('/design');
+    runGuarded(() => {
+      setStartingTemplate(undefined);
+      setGridModalOpen(true);
+      navigate('/design');
+    });
   }, [navigate]);
 
   const handleSaved = async (puzzle: Puzzle15) => {
@@ -132,9 +137,11 @@ function AppShell() {
               <button
                 type="button"
                 className="btn"
-                onClick={async () => {
-                  await signOut();
-                  navigate('/login');
+                onClick={() => {
+                  runGuarded(async () => {
+                    await signOut();
+                    navigate('/login');
+                  });
                 }}
               >
                 Sign out
