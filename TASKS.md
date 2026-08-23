@@ -32,7 +32,9 @@ Scope: `CrosswordPlayer.tsx`, `PuzzleDesigner.tsx` only.
 
 ---
 
-## T022 — [CHANGES REQUESTED] Solver-mode desktop UX: compact 3-column layout, Tab navigation, clickable clues
+## T022 — [READY FOR REVIEW] Solver-mode desktop UX: compact 3-column layout, Tab navigation, clickable clues
+
+**Implementation notes:** Addressed review feedback — square cells via `aspect-ratio` on `.cell`; container-query scaling for letter/number sizes; wider grid column (`2fr`) with height-filling grid via `min(100cqw, 100cqh)` in `.solverGridPanel`.
 
 **One task, one branch, deliberately** — these three are being done together instead of as three parallel branches, specifically because they all touch overlapping regions of `CrosswordPlayer.tsx` (the clue-list JSX especially), and parallel branches touching the same file is exactly what caused a real merge conflict a few tasks back (T018/T019 vs T020). Sequential within one task avoids repeating that. Reference screenshot showed a NYT-style layout: grid, ACROSS list, and DOWN list all visible simultaneously in three columns, no scrolling needed to see one at the expense of another.
 

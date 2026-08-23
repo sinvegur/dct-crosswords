@@ -85,7 +85,7 @@ textarea {
 }
 
 .layout.layoutSolver {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.25fr);
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 0.85fr) minmax(0, 2fr);
   align-items: stretch;
   height: calc(100dvh - 120px);
   min-height: 520px;
@@ -104,7 +104,26 @@ textarea {
 }
 
 .solverGridPanel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   overflow-y: auto;
+}
+
+.solverGridPanel .gridWrap {
+  flex: 1;
+  min-height: 0;
+  container-type: size;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.solverGridPanel .grid {
+  width: min(100cqw, 100cqh);
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
 }
 
 .clueItemClickable {
@@ -187,6 +206,7 @@ textarea {
 .grid {
   width: 100%;
   aspect-ratio: 1 / 1;
+  container-type: inline-size;
   display: grid;
   grid-template-columns: repeat(15, 1fr);
   grid-template-rows: repeat(15, 1fr);
@@ -195,6 +215,7 @@ textarea {
 }
 
 .cell {
+  aspect-ratio: 1 / 1;
   border: 1px solid var(--cell-border);
   background: var(--cell-bg);
   display: flex;
@@ -220,7 +241,7 @@ textarea {
   outline: none;
   background: transparent;
   font-family: var(--font-grid);
-  font-size: 24px;
+  font-size: clamp(14px, 5.3cqi, 24px);
   font-weight: 700;
   caret-color: transparent;
   color: #111827;
@@ -228,14 +249,14 @@ textarea {
 
 .cellNumber {
   position: absolute;
-  top: 2px;
-  left: 2px;
+  top: clamp(1px, 0.45cqi, 2px);
+  left: clamp(1px, 0.45cqi, 2px);
   padding: 0 1px;
   border-radius: 2px;
   background: inherit;
   line-height: 1.1;
   font-family: var(--font-grid);
-  font-size: 9px;
+  font-size: clamp(6px, 2.1cqi, 9px);
   font-weight: 700;
   color: #111827;
   pointer-events: none;
