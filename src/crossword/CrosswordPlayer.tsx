@@ -283,25 +283,43 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     focusCell(firstCell);
   };
 
+  const isEntryFilled = (entry: Entry) =>
+    entry.cells.every((c) => Boolean(filled[idxOf(c.row, c.col)]));
+
   const stepEntry = (delta: 1 | -1) => {
-    const entries = activeDirection === 'across' ? computed.entriesAcross : computed.entriesDown;
-    if (entries.length === 0) return;
+    const combined = [
+      ...computed.entriesAcross.map((entry) => ({ direction: 'across' as const, entry })),
+      ...computed.entriesDown.map((entry) => ({ direction: 'down' as const, entry })),
+    ];
+    if (combined.length === 0) return;
 
     const currentIdx =
       activeEntryNumber == null
         ? -1
-        : entries.findIndex((entry) => entry.number === activeEntryNumber);
+        : combined.findIndex(
+            (item) =>
+              item.direction === activeDirection && item.entry.number === activeEntryNumber,
+          );
 
     let nextIdx: number;
     if (currentIdx === -1) {
-      nextIdx = delta === 1 ? 0 : entries.length - 1;
+      nextIdx = delta === 1 ? 0 : combined.length - 1;
     } else {
       nextIdx = currentIdx + delta;
-      if (nextIdx < 0) nextIdx = entries.length - 1;
-      if (nextIdx >= entries.length) nextIdx = 0;
+      if (nextIdx < 0) nextIdx = combined.length - 1;
+      if (nextIdx >= combined.length) nextIdx = 0;
     }
 
-    focusEntry(activeDirection, entries[nextIdx]!.number);
+    for (let steps = 0; steps < combined.length; steps++) {
+      const item = combined[nextIdx]!;
+      if (!isEntryFilled(item.entry)) {
+        focusEntry(item.direction, item.entry.number);
+        return;
+      }
+      nextIdx += delta;
+      if (nextIdx < 0) nextIdx = combined.length - 1;
+      if (nextIdx >= combined.length) nextIdx = 0;
+    }
   };
 
   const toggleDirectionForActiveCell = () => {

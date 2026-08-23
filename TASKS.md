@@ -32,7 +32,7 @@ Scope: `CrosswordPlayer.tsx`, `PuzzleDesigner.tsx` only.
 
 ---
 
-## T025 — [TODO] Tab navigation: sequence across → down (don't wrap within the same list), and skip fully-filled entries
+## T025 — [READY FOR REVIEW] Tab navigation: sequence across → down (don't wrap within the same list), and skip fully-filled entries
 
 Two related bugs in `stepEntry` (`CrosswordPlayer.tsx`), confirmed against the current code — only one caller (`stepEntry`, from the Tab/Shift+Tab handler on the cell `<input>`), so its internals are safe to rework freely.
 
