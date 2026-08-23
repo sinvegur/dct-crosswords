@@ -32,7 +32,7 @@ Scope: `CrosswordPlayer.tsx`, `PuzzleDesigner.tsx` only.
 
 ---
 
-## T021 — [TODO] "Autofill" button in the designer, for fast test/preview publishing
+## T021 — [READY FOR REVIEW] "Autofill" button in the designer, for fast test/preview publishing
 
 **Motivation:** creating a publishable puzzle currently requires manually filling every single letter and clue — real, tedious friction for testing the publish flow, URL generation, share modal, etc., not just for building a real puzzle. Add a quick way to skip straight to "publishable" for testing purposes.
 

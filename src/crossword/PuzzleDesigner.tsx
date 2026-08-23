@@ -14,6 +14,7 @@ import { SIZE_15, computeEntries15, type Direction, type Entry } from './engine'
 import type { Puzzle15 } from './types';
 
 const TOOLBAR_ICON_SIZE = 16;
+const AUTOFILL_LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
 function idxOf(row: number, col: number) {
   return row * SIZE_15 + col;
@@ -471,6 +472,50 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
     }
   };
 
+  const autofillTestData = () => {
+    if (!computed) return;
+
+    let letterIndex = 0;
+    setRows((prev) =>
+      prev.map((row) =>
+        row
+          .split('')
+          .map((ch) => {
+            if (ch === '#') return '#';
+            if (ch.trim() !== '') return ch;
+            const letter = AUTOFILL_LETTERS[letterIndex % AUTOFILL_LETTERS.length]!;
+            letterIndex += 1;
+            return letter;
+          })
+          .join(''),
+      ),
+    );
+
+    setCluesAcross((prev) => {
+      const next = { ...prev };
+      for (const entry of computed.entriesAcross) {
+        if (!next[entry.number]?.trim()) {
+          next[entry.number] = `Test clue ${entry.number} across`;
+        }
+      }
+      return next;
+    });
+
+    setCluesDown((prev) => {
+      const next = { ...prev };
+      for (const entry of computed.entriesDown) {
+        if (!next[entry.number]?.trim()) {
+          next[entry.number] = `Test clue ${entry.number} down`;
+        }
+      }
+      return next;
+    });
+
+    if (!title.trim()) {
+      setTitle('New puzzle');
+    }
+  };
+
   return (
     <div className="layout">
       <div className="panel">
@@ -588,6 +633,14 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
               disabled={saving}
             >
               Cancel
+            </button>
+            <button
+              type="button"
+              className="btn"
+              onClick={autofillTestData}
+              disabled={saving || !computed}
+            >
+              Autofill
             </button>
             {alreadyPublished ? (
               <button
