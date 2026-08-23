@@ -116,3 +116,21 @@ const solveInstantly = () => {
 
 Scope: `CrosswordPlayer.tsx` only.
 
+---
+
+## T030 — [TODO] Creator-facing leaderboard view: new button on the puzzle list, opens a modal with the full attempt list
+
+Right now the leaderboard exists (`attempts` table, `getLeaderboard()` in `storage.ts`) but is only ever visible to a solver on the "Solved!" screen after they personally finish — there's no way for the creator to see who's played a puzzle or how they did without soloing it themselves. Adds a creator-facing view for this.
+
+**1. New "Leaderboard" button on the HomePage puzzle list, next to Play/Edit/Delete.** In `App.tsx`'s `.puzzleActions` row (`HomePage`), add a fourth button alongside the existing three. Unlike "Play" (which only renders `if (p.status === 'published')`), **always render this one regardless of status** — a puzzle that was published, got some attempts, and was later reverted to draft shouldn't lose access to its own results. Clicking it opens the new modal (below) for that puzzle; no navigation, no new route.
+
+**2. New `PuzzleLeaderboardModal` component**, following the exact same structural pattern as the existing `DeletePuzzleConfirmModal` (`src/components/DeletePuzzleConfirmModal.tsx`) — same `.modalOverlay`/`.modal`/`.modalHeader`/`.modalTitle`/`.modalClose`/`.modalFooter` CSS classes, same Escape-to-close and click-outside-to-close behavior, same `open`/`onClose` prop shape. Take a `puzzle: Puzzle15` (or just `puzzleId`/`puzzleTitle`) prop.
+   - **Content**: on open, fetch `getLeaderboard(puzzleId, <a much higher limit than the solver's 10 — e.g. 200>)` from `storage.ts` (no new backend function needed, the existing one already returns everything required, including `completedAtISO` which currently isn't rendered anywhere in the app — this is the first place that field gets used). Show a simple ordered list: solver name, elapsed time (reuse `formatElapsedMs`, exported from `CrosswordPlayer.tsx`), and completed-at date/time (format however reads reasonably, e.g. `new Date(entry.completedAtISO).toLocaleString('en-US')` — same pattern already used for `createdAtISO` elsewhere in `App.tsx`).
+   - **No rank-highlighting, no "you" styling** — those are solver-specific concepts (`attemptId`/`userRank` tied to one browser's local solve) that don't apply here; this is just the full list, already sorted fastest-first by the existing query.
+   - **Empty state**: if the list is empty, show a message in the existing `.emptyState` style, matching the copy tone already used in the solver's own empty leaderboard state ("No times yet…") — e.g. "No one has solved this puzzle yet."
+   - **Loading state**: show something reasonable while the fetch is in flight (a simple "Loading…" `.subtle` line is fine, no need for anything fancier).
+
+**Verify:** click "Leaderboard" on a puzzle with existing attempts (e.g. one you've hit "Solve it" on a few times via T029) and confirm the full list shows, correctly sorted fastest-first, with name/time/date all populated. Click it on a puzzle with zero attempts and confirm the empty state instead of a blank modal. Confirm the button shows for both draft and published puzzles. Confirm Escape and clicking outside both close the modal, consistent with the delete-confirm modal's existing behavior.
+
+Scope: `App.tsx`, new file `src/components/PuzzleLeaderboardModal.tsx`, `styles.css` only if any new classes are genuinely needed (the existing `.modal*` classes should cover almost everything).
+
