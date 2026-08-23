@@ -68,7 +68,7 @@ Scope: `CrosswordPlayer.tsx`, `App.tsx`, `styles.css`.
 
 ---
 
-## T027 — [TODO] Name-gate screen: fix double label spacing and input/button width mismatch
+## T027 — [READY FOR REVIEW] Name-gate screen: fix double label spacing and input/button width mismatch
 
 Two small CSS bugs on the solver name-gate screen (`App.tsx`'s `PlayPage`, the "Enter your name" form before solving starts), both root-caused and verified live with real measurements — apply the exact fixes below, no design judgment needed here.
 
