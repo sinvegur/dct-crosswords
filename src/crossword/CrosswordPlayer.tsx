@@ -81,6 +81,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
 
   const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
   const clueRowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const clickStartedOnActiveCellRef = useRef(false);
 
   const [activeDirection, setActiveDirection] = useState<Direction>('across');
   const [activeEntryNumber, setActiveEntryNumber] = useState<number | null>(null);
@@ -186,12 +187,31 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   };
 
-  const handlePickCell = (cellIndex: number) => {
+  const handlePickCell = (cellIndex: number, opts?: { fromClick?: boolean }) => {
     if (blockSet.has(cellIndex)) return;
     const { row, col } = posOf(cellIndex);
 
     const acrossNum = computed.acrossEntryNumberByCell.get(keyOf(row, col));
     const downNum = computed.downEntryNumberByCell.get(keyOf(row, col));
+
+    if (
+      opts?.fromClick &&
+      clickStartedOnActiveCellRef.current &&
+      cellIndex === activeCellIndex
+    ) {
+      if (activeDirection === 'across' && downNum != null) {
+        setActiveDirection('down');
+        setActiveEntryNumber(downNum);
+        setActiveCellIndex(cellIndex);
+        return;
+      }
+      if (activeDirection === 'down' && acrossNum != null) {
+        setActiveDirection('across');
+        setActiveEntryNumber(acrossNum);
+        setActiveCellIndex(cellIndex);
+        return;
+      }
+    }
 
     if (activeDirection === 'across' && acrossNum != null) {
       setActiveEntryNumber(acrossNum);
@@ -558,12 +578,16 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
 
                 const value = filled[cellIndex] ?? '';
                 const isActiveCell = activeEntryCellIndices.has(cellIndex);
+                const isCurrentCell = activeCellIndex === cellIndex;
 
                 return (
                   <div
                     key={cellIndex}
-                    className={`cell ${isActiveCell ? 'cellActive' : ''}`}
-                    onClick={() => handlePickCell(cellIndex)}
+                    className={`cell ${isActiveCell ? 'cellActive' : ''} ${isCurrentCell ? 'cellCurrent' : ''}`}
+                    onMouseDown={() => {
+                      clickStartedOnActiveCellRef.current = activeCellIndex === cellIndex;
+                    }}
+                    onClick={() => handlePickCell(cellIndex, { fromClick: true })}
                   >
                     {numAtCell != null ? <div className="cellNumber">{numAtCell}</div> : null}
                     <input
