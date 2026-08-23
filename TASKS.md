@@ -32,43 +32,37 @@ Scope: `CrosswordPlayer.tsx`, `PuzzleDesigner.tsx` only.
 
 ---
 
-## T023 — [READY FOR REVIEW] Solver mode: remove leftover instruction text, fix Tab not auto-scrolling the active clue into view, add NYT-style compact clue bar above the grid
+## T024 — [READY FOR REVIEW] Solver mode cosmetics: drop the name-change link, drop the "Active" label, tighten the clue-bar gap, and stop the logo from nuking solve progress
 
-**Implementation notes:** Review follow-up — removed desktop clue-bar nav arrows (Tab/Shift+Tab retained); increased label/text gap to 16px.
+Four small solver-mode (`CrosswordPlayer.tsx` + `App.tsx`) polish items from live testing.
 
-Three related solver-mode (`CrosswordPlayer.tsx`) polish items from live user testing of T022's new layout.
+**1. Remove "Not you? Change name" — just show the solver's name, bold.**
+   - In `CrosswordPlayer.tsx`'s `controlsRow` (around the `solverMeta` div), currently: `Solving as {solverName}` followed by a `·` separator and a `"Not you? Change name"` button (calls the `onChangeName` prop). Remove the separator and the button entirely, and bold the name: `Solving as <strong>{solverName}</strong>`.
+   - Since this was the only caller of `onChangeName`, remove the prop from `CrosswordPlayer`'s `Props` type and its destructuring too.
+   - In `App.tsx`, remove the now-dead `onChangeName={openChangeName}` prop passed to `<CrosswordPlayer />`, and remove the `openChangeName` function itself (it has no other callers — verify that before deleting, but it should be the only one). **Leave `showNameGate`/`nameDraft`/`beginWithName` and the initial name-gate screen completely untouched** — those still handle first-time name entry, this task only removes the ability to *change* an already-set name from inside the solver view.
 
-**1. Remove the "Toggle direction with SPACE" text from the ACROSS column.**
-   - In `CrosswordPlayer.tsx`, remove the entire `<div className="directionHeader"><span className="subtle">Toggle direction with SPACE</span></div>` block (currently sits at the top of the ACROSS clue list, just under the "Across" panel header). Confirmed unnecessary by the user — delete it outright, no replacement text needed.
-   - Leave the DOWN column's `directionHeader` block (the conditional "Best: ..." time) untouched — that's unrelated.
+**2. Remove the "Active: DOWN 7" label under the timer.** In `CrosswordPlayer.tsx`, remove the `{!solved ? (<div className="subtle">Active: ...</div>) : null}` block entirely (sits directly under `.solverTimer` in the top-right of `controlsRow`). `activeDirection`/`activeEntry` are still used elsewhere (the clue bar, highlighting logic) — don't touch those, just delete this one display block.
 
-**2. Tab/Shift+Tab moves the active entry correctly, but nothing scrolls the newly-active clue into view if it's outside the visible area of its clue column.** Confirmed: `stepEntry`/`focusEntry` correctly update `activeDirection`/`activeEntryNumber`/`activeCellIndex` (the underlying state and grid highlighting are right), but the ACROSS/DOWN clue lists (`.cluesScroll`, `overflow-y: auto`) don't scroll themselves — so on a puzzle with a clue list taller than the visible column, tabbing past the bottom of the visible area moves the selection with no visible feedback.
-   - Fix: whenever the active entry changes (covers Tab/Shift+Tab, clicking a clue, clicking a grid cell — anywhere `activeDirection`/`activeEntryNumber` changes), scroll the corresponding clue list item into view within its own `.cluesScroll` container if it isn't already visible. Suggested approach: give each clue row a ref (a `Map` or array keyed by `${direction}:${number}`, same pattern as `inputsRef`), and in a `useEffect` keyed on `[activeDirection, activeEntryNumber]`, call `scrollIntoView({ block: 'nearest' })` (no `inline` needed, it's a vertical list) on the currently-active row's element if found. `block: 'nearest'` is important — it only scrolls if the element isn't already visible, avoiding jumpy behavior when the active clue is already on-screen.
-   - Also apply the same `{ block: 'nearest', inline: 'nearest' }` scroll-into-view to the active grid cell's `<input>` in `focusCell` (after `.focus()`), as a defensive fix for the grid's own `overflow-y: auto` panel — lower priority than the clue-list fix since T022 already sized the grid to fit its panel in the common case, but cheap to add and covers small-viewport-height edge cases.
+**3. Reduce the gap between the blue clue bar and the grid below it — root cause found and fix verified live, use the exact CSS below.**
+   - The gap isn't from `.clueBar`'s `margin-bottom: 8px` as it might look — that's already small. The real cause: `.solverGridPanel .gridWrap { display: grid; place-items: center; }` was written back when `.gridWrap` had a single child (`.grid`) to center. Now it has two children (`.clueBar`, `.grid`) stacked in an implicit two-row grid. With no explicit `grid-template-rows`, both rows are `auto`-sized, and the browser's default content distribution stretches *both* auto rows to share any leftover vertical space in `.gridWrap` (whenever the panel is taller than the bar+grid combined) — then `place-items: center` centers each child within its own now-inflated row. The result: a gap between the bar and the grid that has nothing to do with any margin and instead scales with how much spare vertical space the panel happens to have. Measured directly: 8px at 1440×900 (little spare space, hard to notice), but 252–298px at taller/narrower viewports (900×1200, 1024×1300, 1100×1400) — confirms the scaling relationship.
+   - **Fix, verified**: switch `.solverGridPanel .gridWrap` from CSS Grid to a flex column:
+     ```css
+     .solverGridPanel .gridWrap {
+       flex: 1;
+       min-height: 0;
+       display: flex;
+       flex-direction: column;
+       align-items: center;
+     }
+     ```
+     This keeps `.clueBar` at its natural height and horizontally centers both children (flex `align-items: center` on the cross axis), but no longer distributes leftover vertical space *between* them — any spare space now falls below the grid instead, which reads better anyway (bar and grid stay visually anchored together). Verified: gap is now a consistent 8px at every one of the previously-tested viewport sizes (both the small-gap and huge-gap cases). Also re-ran T022's original 12-viewport overflow-clipping regression sweep after this change — zero overflow at every size, confirming this doesn't reintroduce that earlier bug.
+   - This is the only CSS change needed for this item — `.solverGridPanel .grid`'s sizing rule (the `calc(100cqmin - 24px)` from T022) is untouched and still correct.
 
-**3. New compact clue bar above the grid, NYT-style (reference: attached screenshot) — replaces the removed instructional subtitle.**
-   - Location: inside `.gridWrap`, in the space currently occupied by `<div className="subtle" style={{marginBottom:8}}>Click a cell, type letters (Turkish uppercase). Toggle direction with \`SPACE\`.</div>` — **remove that entire subtitle div** (stale copy, doesn't make sense now — also has stray literal backtick characters around SPACE that were never cleaned up) and put the new clue bar in its place, above `.grid`.
-   - Content, left to right: a left-arrow button, the active entry's number+direction in NYT's compact format (number immediately followed by the direction letter, bold, no space — e.g. `66A`, `12D`), the clue text (regular weight, wraps to multiple lines if long — see reference screenshot), and a right-arrow button.
-   - Behavior: left/right arrows call the existing `stepEntry(-1)` / `stepEntry(1)` — same entry-cycling logic already used for Shift+Tab/Tab, including wrap-around. No new navigation logic needed, just wire the buttons to the existing function.
-   - Styling: pale blue rounded background bar (see reference screenshot for the visual target — light blue fill, generous padding, rounded corners), full width of the grid column. Use a distinct, self-contained set of class names (e.g. `.clueBar`, `.clueBarNav`, `.clueBarLabel`, `.clueBarText`) rather than reusing/overloading existing solver-specific classes — **this is deliberate**, the user wants to reuse this exact component later as the default clue-switcher for the mobile layout, so keep its markup and CSS free of desktop-3-column-specific assumptions (don't nest its styling inside `.solverGridPanel`-scoped selectors, for example).
-   - Empty state: before any cell/clue is selected (`activeEntry` is undefined on initial load), show the bar in some non-broken neutral state rather than a blank box — your call on exact treatment (e.g. placeholder text, or arrows disabled/hidden with a hint like "Select a clue to begin") as long as it doesn't look like a layout bug.
+**4. Clicking the logo while solving a puzzle (`/p/:slug`) navigates to `/`, which is `RequireAuth`-gated — for an unauthenticated solver this dumps them on a login screen and silently discards their in-progress solve (filled letters, timer) since none of that is persisted.** Fix: while on a solver route, the logo should not be a navigation trigger at all.
+   - In `AppShell` (`App.tsx`), add `const isSolverRoute = location.pathname.startsWith('/p/');` (it already has `location` from `useLocation()`). When `isSolverRoute` is true, render the logo as a plain, non-interactive `<img>` (no `<button>` wrapper, no `onClick`, no `goHome` call) instead of the current `<button className="logoButton" onClick={goHome}>`. Keep the existing button behavior unchanged for every other route.
+   - Scope this narrowly to just the logo, as asked — don't touch the `Puzzles`/`New puzzle`/`Sign out` nav buttons (those only render when `session` is truthy, which is a separate, narrower case not covered by this task).
 
-**Verify:**
-- ACROSS column no longer shows any "toggle direction" text.
-- On a puzzle with an ACROSS or DOWN list long enough to require scrolling within its column, Tab/Shift+Tab through several entries and confirm the highlighted clue always ends up visible without manual scrolling.
-- Click several clues and grid cells directly and confirm the clue bar's number/direction/text updates correctly each time, and the arrows correctly step to the next/previous entry (including wrap-around at the first/last entry).
-- Confirm the clue bar's CSS doesn't depend on `.solverGridPanel`'s container-query setup from T022 (sanity check for the future mobile reuse — it doesn't need to actually render correctly on mobile in this task, just not be structurally coupled to the desktop grid panel).
+**Verify:** solver view shows only `Solving as **Name**` (no link, no separator); no "Active: ..." text anywhere in solver mode; the clue-bar-to-grid gap stays visually small and constant across a few different browser window sizes (try resizing tall/narrow vs. wide/short); as an unauthenticated visitor on a `/p/:slug` link, confirm clicking the logo does nothing (no navigation, progress stays intact) while the same logo still works normally as a home link on every other page.
 
-Scope: `CrosswordPlayer.tsx`, `styles.css`.
-
----
-
-**Review notes (Claude) — items 1 and 2 confirmed correct against the diff, no changes needed there. Item 3 (clue bar) needs two cosmetic tweaks before this is done:**
-
-**1. Remove the prev/next arrow buttons from the desktop clue bar.** The user finds them useless in this three-column desktop layout (the entries are already fully visible/clickable in the ACROSS/DOWN columns, and Tab/Shift+Tab already cover keyboard navigation) — arrows only earn their keep in a future mobile layout where the clue list isn't visible alongside the grid. Remove both `<button className="clueBarNav" ...>` elements (and their `ChevronLeft`/`ChevronRight` icons) from the `.clueBar` JSX in `CrosswordPlayer.tsx`. Remove the now-unused `import { ChevronLeft, ChevronRight } from 'lucide-react';` line too. Leave `stepEntry` itself untouched — it's still wired to Tab/Shift+Tab and will be reused when a mobile clue-switcher is eventually built (separate future task, not part of this one).
-   - Remove the `.clueBarNav` CSS rules from `styles.css` (`.clueBarNav`, `.clueBarNav:disabled`, `.clueBarNav:not(:disabled):hover`) since nothing will reference them anymore. `.clueBar`'s `gap: 8px` (previously spacing the nav buttons from `.clueBarBody`) can be dropped too now that `.clueBarBody` is the bar's only child.
-
-**2. With the arrows gone, the bar is just the number+direction label and the clue text — add a bit more space between them for readability.** Currently `.clueBarBody` uses `gap: 8px` between `.clueBarLabel` and `.clueBarText`; bump it to something more generous, `~14-16px`, and re-check that the clue bar still reads cleanly with a long clue that wraps to two lines (the label shouldn't visually crowd the wrapped second line).
-
-**Verify:** confirm no arrow buttons render in the desktop clue bar, confirm `stepEntry` is still reachable via Tab/Shift+Tab (don't accidentally orphan it), confirm the label/text spacing reads more comfortably than before at a glance, and confirm the build has no unused-import warnings from the removed lucide-react icons.
+Scope: `CrosswordPlayer.tsx`, `App.tsx`, `styles.css`.
 
