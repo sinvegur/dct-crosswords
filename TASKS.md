@@ -20,7 +20,7 @@ Both `CrosswordPlayer.tsx` (button labeled "Toggle (SPACE)", in the ACROSS `dire
 
 **1. Remove both buttons.**
 
-**2. Add one small instructional line under "ACROSS"** (in the `directionHeader`, where the button used to sit) in both files, reading something like `"Toggle direction with SPACE"` — small/muted text (reuse `.subtle` or similar existing small-text styling), not a button.
+**2. Add one small instructional line under "ACROSS"** (in the `directionHeader`, where the button used to sit) in `PuzzleDesigner.tsx` only, reading something like `"Toggle direction with SPACE"` — small/muted text (reuse `.subtle` or similar existing small-text styling), not a button. **Do NOT add this to `CrosswordPlayer.tsx`** — a similar line was added there at some point outside this task, and T023 removes it again at the user's request as unnecessary; don't reintroduce it here.
 
 **3. Clean up redundant existing copy** now that the instruction lives in one place:
    - `PuzzleDesigner.tsx`: the `.controlsRow` subtitle currently reads (Letter mode) `"Letter mode: type answers (Turkish uppercase). Toggle direction with SPACE."` — remove this line entirely for Letter mode (both the "type answers" part, which added no value, and the "toggle direction" part, now covered by the new text under ACROSS). Leave the Block mode text (`"Block mode: click cells to toggle white ↔ black."`) unchanged — that's a different, still-useful instruction.
@@ -29,4 +29,33 @@ Both `CrosswordPlayer.tsx` (button labeled "Toggle (SPACE)", in the ACROSS `dire
 **4. Compensate for the removed button — don't regress touch/mouse-only users.** Right now SPACE and the button are the *only* two ways to toggle direction; without a keyboard, a user sitting on a cell that starts both an across and down entry has no way to switch to the other direction without the button (clicking the same already-active cell currently just re-confirms the same direction, doesn't toggle). Fix: make clicking an **already-selected/active** cell toggle direction (if that cell belongs to both an across and a down entry) — standard crossword-app pattern. Implement this in both `CrosswordPlayer.tsx` (`handlePickCell`) and `PuzzleDesigner.tsx` (`pickCell`): if the clicked cell is already the active cell, and it has an entry in the *other* direction available, toggle to that direction instead of re-selecting the same one.
 
 Scope: `CrosswordPlayer.tsx`, `PuzzleDesigner.tsx` only.
+
+---
+
+## T023 — [TODO] Solver mode: remove leftover instruction text, fix Tab not auto-scrolling the active clue into view, add NYT-style compact clue bar above the grid
+
+Three related solver-mode (`CrosswordPlayer.tsx`) polish items from live user testing of T022's new layout.
+
+**1. Remove the "Toggle direction with SPACE" text from the ACROSS column.**
+   - In `CrosswordPlayer.tsx`, remove the entire `<div className="directionHeader"><span className="subtle">Toggle direction with SPACE</span></div>` block (currently sits at the top of the ACROSS clue list, just under the "Across" panel header). Confirmed unnecessary by the user — delete it outright, no replacement text needed.
+   - Leave the DOWN column's `directionHeader` block (the conditional "Best: ..." time) untouched — that's unrelated.
+
+**2. Tab/Shift+Tab moves the active entry correctly, but nothing scrolls the newly-active clue into view if it's outside the visible area of its clue column.** Confirmed: `stepEntry`/`focusEntry` correctly update `activeDirection`/`activeEntryNumber`/`activeCellIndex` (the underlying state and grid highlighting are right), but the ACROSS/DOWN clue lists (`.cluesScroll`, `overflow-y: auto`) don't scroll themselves — so on a puzzle with a clue list taller than the visible column, tabbing past the bottom of the visible area moves the selection with no visible feedback.
+   - Fix: whenever the active entry changes (covers Tab/Shift+Tab, clicking a clue, clicking a grid cell — anywhere `activeDirection`/`activeEntryNumber` changes), scroll the corresponding clue list item into view within its own `.cluesScroll` container if it isn't already visible. Suggested approach: give each clue row a ref (a `Map` or array keyed by `${direction}:${number}`, same pattern as `inputsRef`), and in a `useEffect` keyed on `[activeDirection, activeEntryNumber]`, call `scrollIntoView({ block: 'nearest' })` (no `inline` needed, it's a vertical list) on the currently-active row's element if found. `block: 'nearest'` is important — it only scrolls if the element isn't already visible, avoiding jumpy behavior when the active clue is already on-screen.
+   - Also apply the same `{ block: 'nearest', inline: 'nearest' }` scroll-into-view to the active grid cell's `<input>` in `focusCell` (after `.focus()`), as a defensive fix for the grid's own `overflow-y: auto` panel — lower priority than the clue-list fix since T022 already sized the grid to fit its panel in the common case, but cheap to add and covers small-viewport-height edge cases.
+
+**3. New compact clue bar above the grid, NYT-style (reference: attached screenshot) — replaces the removed instructional subtitle.**
+   - Location: inside `.gridWrap`, in the space currently occupied by `<div className="subtle" style={{marginBottom:8}}>Click a cell, type letters (Turkish uppercase). Toggle direction with \`SPACE\`.</div>` — **remove that entire subtitle div** (stale copy, doesn't make sense now — also has stray literal backtick characters around SPACE that were never cleaned up) and put the new clue bar in its place, above `.grid`.
+   - Content, left to right: a left-arrow button, the active entry's number+direction in NYT's compact format (number immediately followed by the direction letter, bold, no space — e.g. `66A`, `12D`), the clue text (regular weight, wraps to multiple lines if long — see reference screenshot), and a right-arrow button.
+   - Behavior: left/right arrows call the existing `stepEntry(-1)` / `stepEntry(1)` — same entry-cycling logic already used for Shift+Tab/Tab, including wrap-around. No new navigation logic needed, just wire the buttons to the existing function.
+   - Styling: pale blue rounded background bar (see reference screenshot for the visual target — light blue fill, generous padding, rounded corners), full width of the grid column. Use a distinct, self-contained set of class names (e.g. `.clueBar`, `.clueBarNav`, `.clueBarLabel`, `.clueBarText`) rather than reusing/overloading existing solver-specific classes — **this is deliberate**, the user wants to reuse this exact component later as the default clue-switcher for the mobile layout, so keep its markup and CSS free of desktop-3-column-specific assumptions (don't nest its styling inside `.solverGridPanel`-scoped selectors, for example).
+   - Empty state: before any cell/clue is selected (`activeEntry` is undefined on initial load), show the bar in some non-broken neutral state rather than a blank box — your call on exact treatment (e.g. placeholder text, or arrows disabled/hidden with a hint like "Select a clue to begin") as long as it doesn't look like a layout bug.
+
+**Verify:**
+- ACROSS column no longer shows any "toggle direction" text.
+- On a puzzle with an ACROSS or DOWN list long enough to require scrolling within its column, Tab/Shift+Tab through several entries and confirm the highlighted clue always ends up visible without manual scrolling.
+- Click several clues and grid cells directly and confirm the clue bar's number/direction/text updates correctly each time, and the arrows correctly step to the next/previous entry (including wrap-around at the first/last entry).
+- Confirm the clue bar's CSS doesn't depend on `.solverGridPanel`'s container-query setup from T022 (sanity check for the future mobile reuse — it doesn't need to actually render correctly on mobile in this task, just not be structurally coupled to the desktop grid panel).
+
+Scope: `CrosswordPlayer.tsx`, `styles.css`.
 
