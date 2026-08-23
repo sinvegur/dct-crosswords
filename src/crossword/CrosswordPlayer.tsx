@@ -22,6 +22,10 @@ function keyOf(row: number, col: number) {
   return `${row},${col}`;
 }
 
+function clueKey(direction: Direction, number: number) {
+  return `${direction}:${number}`;
+}
+
 function normalizeLetter(raw: string) {
   const trimmed = raw.replace(/\s+/g, '');
   if (!trimmed) return '';
@@ -77,6 +81,7 @@ export function CrosswordPlayer({ puzzle, solverName, onChangeName }: Props) {
   }, [puzzle.id]);
 
   const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
+  const clueRowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   const [activeDirection, setActiveDirection] = useState<Direction>('across');
   const [activeEntryNumber, setActiveEntryNumber] = useState<number | null>(null);
@@ -121,6 +126,12 @@ export function CrosswordPlayer({ puzzle, solverName, onChangeName }: Props) {
   }, [solved]);
 
   const liveElapsedMs = !solved ? tickNowMs - startAtMs : elapsedMs;
+
+  useEffect(() => {
+    if (activeEntryNumber == null) return;
+    const el = clueRowRefs.current.get(clueKey(activeDirection, activeEntryNumber));
+    el?.scrollIntoView({ block: 'nearest' });
+  }, [activeDirection, activeEntryNumber]);
 
   useEffect(() => {
     if (!solved || elapsedMs == null || submittedRef.current) return;
@@ -171,7 +182,9 @@ export function CrosswordPlayer({ puzzle, solverName, onChangeName }: Props) {
   const focusCell = (cellIndex: number | null) => {
     if (cellIndex == null) return;
     const el = inputsRef.current[cellIndex];
-    if (el) el.focus();
+    if (!el) return;
+    el.focus();
+    el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   };
 
   const handlePickCell = (cellIndex: number) => {
@@ -358,20 +371,29 @@ export function CrosswordPlayer({ puzzle, solverName, onChangeName }: Props) {
   const showRankOutsideTop =
     userRank != null && leaderboard.length > 0 && !userOnLeaderboard;
 
+  const activeClueText =
+    activeEntry == null
+      ? ''
+      : activeDirection === 'across'
+        ? (puzzle.clues.across[activeEntry.number] ?? '')
+        : (puzzle.clues.down[activeEntry.number] ?? '');
+
   return (
     <div className="layout layoutSolver">
       <div className="panel solverCluePanel">
         <div className="panelHeader">Across</div>
         <div className="clues cluesScroll">
-          <div className="directionHeader">
-            <span className="subtle">Toggle direction with SPACE</span>
-          </div>
           {computed.entriesAcross.map((e) => {
             const isActive = activeDirection === 'across' && activeEntryNumber === e.number;
             const clue = puzzle.clues.across[e.number] ?? '';
             return (
               <div
                 key={`across:${e.number}`}
+                ref={(el) => {
+                  const key = clueKey('across', e.number);
+                  if (el) clueRowRefs.current.set(key, el);
+                  else clueRowRefs.current.delete(key);
+                }}
                 className={`clueItem clueItemClickable ${isActive ? 'clueActive' : ''}`}
                 onClick={() => focusEntry('across', e.number)}
               >
@@ -397,6 +419,11 @@ export function CrosswordPlayer({ puzzle, solverName, onChangeName }: Props) {
             return (
               <div
                 key={`down:${e.number}`}
+                ref={(el) => {
+                  const key = clueKey('down', e.number);
+                  if (el) clueRowRefs.current.set(key, el);
+                  else clueRowRefs.current.delete(key);
+                }}
                 className={`clueItem clueItemClickable ${isActive ? 'clueActive' : ''}`}
                 onClick={() => focusEntry('down', e.number)}
               >
@@ -490,8 +517,20 @@ export function CrosswordPlayer({ puzzle, solverName, onChangeName }: Props) {
           </div>
         ) : (
           <div className="gridWrap">
-            <div className="subtle" style={{ marginBottom: 8 }}>
-              Click a cell, type letters (Turkish uppercase). Toggle direction with `SPACE`.
+            <div className="clueBar">
+              <div className="clueBarBody">
+                {activeEntry ? (
+                  <>
+                    <span className="clueBarLabel">
+                      {activeEntry.number}
+                      {activeDirection === 'across' ? 'A' : 'D'}
+                    </span>
+                    <span className="clueBarText">{activeClueText}</span>
+                  </>
+                ) : (
+                  <span className="clueBarText clueBarPlaceholder">Select a clue to begin</span>
+                )}
+              </div>
             </div>
             <div
               className="grid"

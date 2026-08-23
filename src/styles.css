@@ -133,6 +133,41 @@ textarea {
   background: #f9fafb;
 }
 
+.clueBar {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  background: #dbeafe;
+  border-radius: 10px;
+}
+
+.clueBarBody {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.clueBarLabel {
+  flex-shrink: 0;
+  font-family: var(--font-grid);
+  font-weight: 700;
+  color: #1e3a8a;
+}
+
+.clueBarText {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  line-height: 1.35;
+  color: #111827;
+}
+
+.clueBarPlaceholder {
+  color: var(--muted);
+}
+
 .panel {
   background: var(--panel);
   border: 1px solid var(--border);
