@@ -380,6 +380,16 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     }
   };
 
+  const solveInstantly = () => {
+    const nextFilled = filled.slice();
+    for (let i = 0; i < solutionChars.length; i++) {
+      if (blockSet.has(i)) continue;
+      nextFilled[i] = solutionChars[i]!;
+    }
+    setFilled(nextFilled);
+    finishIfSolved(nextFilled);
+  };
+
   const onCellInputChange = (cellIndex: number, raw: string) => {
     if (solved) return;
     if (blockSet.has(cellIndex)) return;
@@ -484,10 +494,24 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
               </span>
             </div>
           </div>
-          <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
+          <div
+            style={{
+              marginLeft: 'auto',
+              display: 'flex',
+              gap: 8,
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+            }}
+          >
             <div className="solverTimer" aria-live="polite">
               {formatElapsedMs(liveElapsedMs ?? tickNowMs - startAtMs)}
             </div>
+            {!solved ? (
+              <button type="button" className="btn" onClick={solveInstantly}>
+                Solve it
+              </button>
+            ) : null}
           </div>
         </div>
 

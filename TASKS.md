@@ -92,7 +92,7 @@ Scope: still just `CrosswordPlayer.tsx`.
 
 ---
 
-## T029 — [TODO] Temporary "Solve it" button in solver mode, for repeatedly testing the leaderboard flow
+## T029 — [READY FOR REVIEW] Temporary "Solve it" button in solver mode, for repeatedly testing the leaderboard flow
 
 **Same idea as T021's "Autofill" button in the designer (`PuzzleDesigner.tsx`) — same precedent applies: plain, always-visible `.btn`, no dev-only gating or feature flag needed, understood to be a temporary testing aid the user will remove by hand before real launch.** The user wants to iterate on the leaderboard/results experience and needs a fast way to repeatedly "finish" a published puzzle without manually typing every letter each time.
 
