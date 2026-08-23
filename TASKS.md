@@ -92,32 +92,27 @@ Scope: still just `CrosswordPlayer.tsx`.
 
 ---
 
-## T028 — [READY FOR REVIEW] Fix letter/number overlap in solver-mode grid cells — the letter's font-size "scaling" never actually engages on desktop
+## T029 — [READY FOR REVIEW] Temporary "Solve it" button in solver mode, for repeatedly testing the leaderboard flow
 
-User-reported: letters overlapping the corner numbers in some cells in solver mode. Root-caused live with zoomed screenshots and direct measurement — this is a real regression in effect (not new code, but a long-standing miscalibration that T022's 3-column layout exposed by making cells smaller than before).
+**Same idea as T021's "Autofill" button in the designer (`PuzzleDesigner.tsx`) — same precedent applies: plain, always-visible `.btn`, no dev-only gating or feature flag needed, understood to be a temporary testing aid the user will remove by hand before real launch.** The user wants to iterate on the leaderboard/results experience and needs a fast way to repeatedly "finish" a published puzzle without manually typing every letter each time.
 
-**Root cause:** `.cell input`'s font-size is `clamp(14px, 5.3cqi, 24px)`. Measured the actual computed font-size across the entire realistic desktop solver-grid range (grid width 556px–804px, i.e. roughly 35px–52px cells): it was **exactly 24px at every single size tested** — the `5.3cqi` term already exceeds the 24px ceiling even at the smallest cell size, so the clamp's upper bound is doing 100% of the work and the "scaling" term never actually engages in practice. The letter stays visually full-size as cells shrink, while `.cellNumber` (its own clamp) is already at *its* floor (6px font, 1-2px inset) with no more room to give. At the smallest end (35×35px cells, e.g. a ~1100px-wide browser window), this crowds the number badge enough that top-heavy Turkish diacritics collide with it — confirmed via 4x-zoomed screenshots: **Ğ's breve mark directly overlapped the "0" in a "10" badge**; Ö and Ü were touching/borderline at the same size; İ and Ş had enough clearance to be fine (their marks are narrower/positioned differently).
+**Add a "Solve it" button to `CrosswordPlayer.tsx`'s solver `controlsRow`** (the same row that has the puzzle title and the timer — put the button in the right-hand div, near the timer, mirroring where T021 placed its Autofill button relative to the designer's other toolbar buttons). Only render it while `!solved` (no reason to show it after the puzzle's already finished).
 
-**Fix — verified live, resolves the overlap without affecting anything already working:**
-```css
-.cell input {
-  /* ... */
-  font-size: clamp(14px, 3.6cqi, 24px);
-  /* ... unchanged otherwise */
-}
+**Behavior:** on click, instantly fill every non-block cell with its correct letter from `solutionChars` (already computed via `useMemo` from `puzzle.solutionGrid` — this is exactly the array `checkSolved` compares against, so building `nextFilled` from it directly guarantees a correct solve) and call the existing `finishIfSolved(nextFilled)` after `setFilled(nextFilled)` — that function already handles everything else (marking `solved`, recording `elapsedMs`, best-time tracking), and the existing `useEffect` watching `solved`/`elapsedMs` will automatically submit the attempt and load the leaderboard, exactly like a real solve. No new submission/leaderboard logic needed — this should be a small, mechanical addition that reuses the existing win path end to end.
+
+```tsx
+const solveInstantly = () => {
+  const nextFilled = filled.slice();
+  for (let i = 0; i < solutionChars.length; i++) {
+    if (blockSet.has(i)) continue;
+    nextFilled[i] = solutionChars[i]!;
+  }
+  setFilled(nextFilled);
+  finishIfSolved(nextFilled);
+};
 ```
-Only the middle (preferred-value) term changes, from `5.3cqi` to `3.6cqi` — `14px` floor and `24px` ceiling stay exactly as they are. This makes the font genuinely scale across the realistic range instead of flatlining: measured before/after at four viewports —
 
-| grid width (≈cell size) | font before | font after |
-|---|---|---|
-| 556px (≈35px cells) | 24px | 20.0px |
-| 653px (≈42px cells) | 24px | 23.5px |
-| 739px (≈47px cells) | 24px | 24px |
-| 804px (≈52px cells) | 24px | 24px |
+**Verify:** click "Solve it" on a puzzle with no letters typed yet — confirm it jumps straight to the "Solved!" results screen with a real (if trivially fast) elapsed time, the attempt gets submitted, and the leaderboard loads and shows the new entry. Reload the page (fresh `filled` state) and repeat a few times to confirm it's reliably repeatable for testing.
 
-So larger cells (739px+ grid width, roughly 47px+ cells — the range most desktop viewports actually land in) are **completely unaffected**, still rendering at the full 24px that's already confirmed to look right there. Only the smaller end of the range (down to ~35px cells, hit on narrower browser windows) picks up genuine headroom. Re-verified all five Turkish top-diacritic letters (Ğ, İ, Ö, Ş, Ü) in a two-digit-numbered cell at the smallest size after the change — no overlap in any case (Ğ went from directly touching to a clear visible gap). Also re-checked a full ungapped grid screenshot at both size extremes to confirm nothing looks awkwardly small or inconsistent.
-
-**Verify:** at a narrow-ish browser window (roughly 1000–1150px wide) so the grid renders in the ~35px-cell range, type Ğ, Ö, Ş, Ü, İ into a few different two-digit-numbered cells and zoom in — confirm no visible touching/overlap between the letter's diacritic ink and the number badge in any case. At a wide window (1700px+), confirm letters still look the same size as before (should be unchanged, still hitting the 24px ceiling).
-
-Scope: `styles.css` only — one clamp value, no JSX changes.
+Scope: `CrosswordPlayer.tsx` only.
 
