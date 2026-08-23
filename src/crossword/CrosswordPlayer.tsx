@@ -45,10 +45,9 @@ export { SOLVER_NAME_KEY };
 type Props = {
   puzzle: Puzzle15;
   solverName: string;
-  onChangeName?: () => void;
 };
 
-export function CrosswordPlayer({ puzzle, solverName, onChangeName }: Props) {
+export function CrosswordPlayer({ puzzle, solverName }: Props) {
   const computed = useMemo(() => computeEntries15(puzzle.solutionGrid), [puzzle.id]);
   const solutionChars = useMemo(() => puzzle.solutionGrid.flatMap((r) => r.split('')), [puzzle.solutionGrid]);
 
@@ -442,26 +441,15 @@ export function CrosswordPlayer({ puzzle, solverName, onChangeName }: Props) {
               {puzzle.title}
             </div>
             <div className="subtle solverMeta">
-              <span>Solving as {solverName}</span>
-              {onChangeName ? (
-                <>
-                  {' · '}
-                  <button type="button" className="linkButton" onClick={onChangeName}>
-                    Not you? Change name
-                  </button>
-                </>
-              ) : null}
+              <span>
+                Solving as <strong>{solverName}</strong>
+              </span>
             </div>
           </div>
           <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
             <div className="solverTimer" aria-live="polite">
               {formatElapsedMs(liveElapsedMs ?? tickNowMs - startAtMs)}
             </div>
-            {!solved ? (
-              <div className="subtle">
-                Active: {activeEntry ? `${activeDirection.toUpperCase()} ${activeEntry.number}` : '—'}
-              </div>
-            ) : null}
           </div>
         </div>
 

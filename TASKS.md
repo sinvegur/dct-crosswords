@@ -32,7 +32,7 @@ Scope: `CrosswordPlayer.tsx`, `PuzzleDesigner.tsx` only.
 
 ---
 
-## T024 — [TODO] Solver mode cosmetics: drop the name-change link, drop the "Active" label, tighten the clue-bar gap, and stop the logo from nuking solve progress
+## T024 — [READY FOR REVIEW] Solver mode cosmetics: drop the name-change link, drop the "Active" label, tighten the clue-bar gap, and stop the logo from nuking solve progress
 
 Four small solver-mode (`CrosswordPlayer.tsx` + `App.tsx`) polish items from live testing.
 

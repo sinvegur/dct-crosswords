@@ -79,6 +79,7 @@ function AppShell() {
   }, [session?.user?.id]);
 
   const isHome = location.pathname === '/';
+  const isSolverRoute = location.pathname.startsWith('/p/');
   const isNewDesign =
     location.pathname === '/design' || (gridModalOpen && !location.pathname.startsWith('/design/'));
 
@@ -122,13 +123,21 @@ function AppShell() {
   return (
     <div className="page">
       <div className="header">
-        <button type="button" className="logoButton" onClick={goHome} aria-label="Home">
+        {isSolverRoute ? (
           <img
             className="logoImg"
             src="/dct_crosswords_transparent.png"
             alt="DCT Crosswords"
           />
-        </button>
+        ) : (
+          <button type="button" className="logoButton" onClick={goHome} aria-label="Home">
+            <img
+              className="logoImg"
+              src="/dct_crosswords_transparent.png"
+              alt="DCT Crosswords"
+            />
+          </button>
+        )}
         <div className="nav">
           {session ? (
             <>
@@ -518,11 +527,6 @@ function PlayPage() {
     setNameDraft('');
   };
 
-  const openChangeName = () => {
-    setNameDraft(solverName ?? '');
-    setShowNameGate(true);
-  };
-
   if (loading) {
     return (
       <div className="panel">
@@ -572,7 +576,7 @@ function PlayPage() {
 
   if (playing && solverName) {
     return (
-      <CrosswordPlayer puzzle={playing} solverName={solverName} onChangeName={openChangeName} />
+      <CrosswordPlayer puzzle={playing} solverName={solverName} />
     );
   }
 
