@@ -32,7 +32,7 @@ Scope: `CrosswordPlayer.tsx`, `PuzzleDesigner.tsx` only.
 
 ---
 
-## T025 — [TODO] Tab navigation: sequence across → down (don't wrap within the same list), and skip fully-filled entries
+## T025 — [CHANGES REQUESTED] Tab navigation: sequence across → down (don't wrap within the same list), and skip fully-filled entries
 
 Two related bugs in `stepEntry` (`CrosswordPlayer.tsx`), confirmed against the current code — only one caller (`stepEntry`, from the Tab/Shift+Tab handler on the cell `<input>`), so its internals are safe to rework freely.
 
@@ -48,4 +48,61 @@ Two related bugs in `stepEntry` (`CrosswordPlayer.tsx`), confirmed against the c
 **Verify:** on a puzzle with a mix of filled/unfilled entries, Tab from the last ACROSS entry lands on the first *unfilled* DOWN entry (not wrapping to ACROSS #1, and not landing on an already-filled DOWN entry); Shift+Tab from the first ACROSS entry lands on the last *unfilled* DOWN entry; fill in an entry completely mid-puzzle, then Tab away from it, and confirm Tab never lands back on it later in the cycle; confirm direction highlighting (grid + active clue in the ACROSS/DOWN columns) updates correctly every time Tab crosses from one list into the other.
 
 Scope: `CrosswordPlayer.tsx` only.
+
+---
+
+**Review notes (Claude) — `stepEntry`'s own index math is correct (verified with a debug instrumentation pass, logging every step of its internal loop), but the feature still visibly fails: live testing found a separate, pre-existing bug that corrupts the result whenever `focusEntry` crosses from one direction into the other. Root-caused and a fix verified live — this is a small, surgical change, not a rewrite of anything T025 already built.**
+
+**The bug:** `focusEntry(direction, entryNumber)` calls `setActiveDirection(direction)`, `setActiveEntryNumber(entryNumber)`, then `focusCell(firstCell)`, which calls `el.focus()`. That `.focus()` synchronously fires the cell `<input>`'s `onFocus={() => handlePickCell(cellIndex)}` — and `handlePickCell` reads `activeDirection` from its render closure, which at this point in the same synchronous call stack **still holds the pre-update value** (React hasn't re-rendered yet). So `handlePickCell` re-derives the entry number using the *old* direction and overwrites the correct one `focusEntry` just set — direction ends up right, but the entry number silently gets replaced by whichever entry the *old* direction covers at that cell.
+
+Confirmed via direct instrumentation: Shift+Tab from ACROSS 1 correctly computed `nextIdx` → DOWN 13 internally, but the final active state showed DOWN 1 (1 being whatever ACROSS entry happened to cover DOWN 13's starting cell). **This is not new to T025** — it's a latent bug in `focusEntry`/`focusCell` that predates this task. Confirmed it independently breaks plain clue-clicking too: with ACROSS 1 active, clicking the "Down 5" clue directly (no keyboard involved) also incorrectly landed on "Down 1" instead of "Down 5", for the same reason. T025 is what exercises this path for the first time in a way that's easy to trigger and notice (crossing directions via Tab is common), but the underlying `focusCell`/`onFocus` interaction should be fixed regardless.
+
+**The fix — verified live**: suppress the redundant `onFocus`-driven `handlePickCell` call specifically when the focus was triggered programmatically by `focusCell` (every one of `focusCell`'s callers — `focusEntry`, `moveInResolvedEntry`, `backspaceEmptyCell` — already explicitly set the correct state before calling it, so that `onFocus` call is always redundant in this path; it should only fire for a genuine user-driven focus change, e.g. a raw click landing directly on the `<input>`).
+
+```tsx
+// new ref alongside inputsRef/clueRowRefs
+const skipNextFocusPickRef = useRef(false);
+
+const focusCell = (cellIndex: number | null) => {
+  if (cellIndex == null) return;
+  const el = inputsRef.current[cellIndex];
+  if (!el) return;
+  skipNextFocusPickRef.current = true;
+  el.focus();
+  el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+};
+```
+
+```tsx
+// the cell <input>'s onFocus
+onFocus={() => {
+  if (skipNextFocusPickRef.current) {
+    skipNextFocusPickRef.current = false;
+    return;
+  }
+  handlePickCell(cellIndex);
+}}
+```
+
+Verified this exact change live: re-tested Shift+Tab from ACROSS 1 (now correctly lands on DOWN 13), the direct clue-click case (now correctly lands on DOWN 5), plus a regression pass — raw grid-cell clicks, typing forward through an entry, backspace-moves-back, and the skip-filled-entry logic (filled an entry, tabbed away, confirmed it's skipped and never revisited) all still behave exactly as before. Build (`npm run build`) passes clean.
+
+**Verify:** everything already listed in T025's own Verify section, plus: with ACROSS active, click a DOWN clue directly (mouse, no keyboard) and confirm it activates the clue you actually clicked, not some other one.
+
+Scope: still just `CrosswordPlayer.tsx`.
+
+---
+
+## T026 — [TODO] Highlight the exact active letter within the active word, and let clicking it toggle across/down (NYT-style)
+
+New feature request, reference: NYT's crossword UI highlights the whole active word in light blue, but the *one specific cell* the cursor is on gets a stronger, distinct highlight (yellow in NYT's case) — and clicking that specific highlighted cell again toggles between across/down for that cell (if it starts/belongs to both). Currently `CrosswordPlayer.tsx` only has one level of highlighting: `isActiveCell = activeEntryCellIndices.has(cellIndex)` applies the same `.cellActive` style to every cell in the active word, with no distinction for the specific cursor position (`activeCellIndex`).
+
+**Note on overlap with T011:** T011 (still `[BLOCKED, do not start yet]`) item 4 already specs the click-to-toggle-direction behavior, but scoped to *both* `CrosswordPlayer.tsx` and `PuzzleDesigner.tsx`. This task implements that same behavior for `CrosswordPlayer.tsx` only, now, since the user is actively asking for it as part of this NYT-parity pass. **Once this ships, T011's item 4 is done for `CrosswordPlayer.tsx` — leave T011 itself alone (still blocked, PuzzleDesigner.tsx's button removal and the `PuzzleDesigner.tsx` half of the toggle-on-click behavior are unrelated and untouched by this task) but skip re-implementing the `CrosswordPlayer.tsx` half of T011's item 4 when T011 eventually gets unblocked** — note this explicitly in T011 when you get there, or ask Claude to update it.
+
+**1. Distinct highlight for the specific active cell.** Add a new CSS class, e.g. `.cellCurrent`, applied only when `cellIndex === activeCellIndex` (in addition to `.cellActive`, which still applies to the rest of the active word's cells). Give it a visually distinct background from `.cellActive`'s existing `var(--cell-bg-active)` (`#fff7ed`, a light peach) — add a new CSS variable, e.g. `--cell-bg-current: #fde047` (a yellow, matching the NYT reference) or similar, your call on the exact shade as long as it's clearly a stronger/different highlight than the rest of the active word. `.cellCurrent` should visually layer on top of / take precedence over `.cellActive` for that one cell.
+
+**2. Clicking the currently-active cell toggles direction, if that cell belongs to both an across and a down entry.** This is T011 item 4's logic, ported to `CrosswordPlayer.tsx`: in `handlePickCell`, if the clicked `cellIndex` already equals the current `activeCellIndex` (i.e., the user clicked the cell that's already focused/active), and that cell has an entry available in the *other* direction (the one currently not active), switch `activeDirection` to that other direction and update `activeEntryNumber` accordingly, instead of leaving everything unchanged (today, clicking the already-active cell is a no-op re-confirmation of the same direction).
+
+**Verify:** click any cell — confirm the whole word highlights lightly (unchanged) but the specific clicked cell gets the stronger/distinct highlight; move through the word via typing/arrow-equivalent navigation and confirm the strong highlight follows the cursor cell-by-cell, not just the word; find a cell that starts both an across and a down entry, click it once (picks one direction), click it again (should toggle to the other direction, both grid highlighting and the ACROSS/DOWN clue-column highlighting should update to match); confirm clicking a *different* (non-active) cell still behaves as a normal pick, not a toggle.
+
+Scope: `CrosswordPlayer.tsx`, `styles.css`.
 
