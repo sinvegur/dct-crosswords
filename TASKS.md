@@ -92,7 +92,7 @@ Scope: still just `CrosswordPlayer.tsx`.
 
 ---
 
-## T028 — [TODO] Fix letter/number overlap in solver-mode grid cells — the letter's font-size "scaling" never actually engages on desktop
+## T028 — [READY FOR REVIEW] Fix letter/number overlap in solver-mode grid cells — the letter's font-size "scaling" never actually engages on desktop
 
 User-reported: letters overlapping the corner numbers in some cells in solver mode. Root-caused live with zoomed screenshots and direct measurement — this is a real regression in effect (not new code, but a long-standing miscalibration that T022's 3-column layout exposed by making cells smaller than before).
 

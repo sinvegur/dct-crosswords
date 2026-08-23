@@ -277,7 +277,7 @@ textarea {
   outline: none;
   background: transparent;
   font-family: var(--font-grid);
-  font-size: clamp(14px, 5.3cqi, 24px);
+  font-size: clamp(14px, 3.6cqi, 24px);
   font-weight: 700;
   caret-color: transparent;
   color: #111827;
