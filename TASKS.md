@@ -72,3 +72,39 @@ Scope: `CrosswordPlayer.tsx`, `styles.css`.
 
 **Verify:** confirm no arrow buttons render in the desktop clue bar, confirm `stepEntry` is still reachable via Tab/Shift+Tab (don't accidentally orphan it), confirm the label/text spacing reads more comfortably than before at a glance, and confirm the build has no unused-import warnings from the removed lucide-react icons.
 
+---
+
+## T024 — [TODO] Solver mode cosmetics: drop the name-change link, drop the "Active" label, tighten the clue-bar gap, and stop the logo from nuking solve progress
+
+Four small solver-mode (`CrosswordPlayer.tsx` + `App.tsx`) polish items from live testing.
+
+**1. Remove "Not you? Change name" — just show the solver's name, bold.**
+   - In `CrosswordPlayer.tsx`'s `controlsRow` (around the `solverMeta` div), currently: `Solving as {solverName}` followed by a `·` separator and a `"Not you? Change name"` button (calls the `onChangeName` prop). Remove the separator and the button entirely, and bold the name: `Solving as <strong>{solverName}</strong>`.
+   - Since this was the only caller of `onChangeName`, remove the prop from `CrosswordPlayer`'s `Props` type and its destructuring too.
+   - In `App.tsx`, remove the now-dead `onChangeName={openChangeName}` prop passed to `<CrosswordPlayer />`, and remove the `openChangeName` function itself (it has no other callers — verify that before deleting, but it should be the only one). **Leave `showNameGate`/`nameDraft`/`beginWithName` and the initial name-gate screen completely untouched** — those still handle first-time name entry, this task only removes the ability to *change* an already-set name from inside the solver view.
+
+**2. Remove the "Active: DOWN 7" label under the timer.** In `CrosswordPlayer.tsx`, remove the `{!solved ? (<div className="subtle">Active: ...</div>) : null}` block entirely (sits directly under `.solverTimer` in the top-right of `controlsRow`). `activeDirection`/`activeEntry` are still used elsewhere (the clue bar, highlighting logic) — don't touch those, just delete this one display block.
+
+**3. Reduce the gap between the blue clue bar and the grid below it — root cause found and fix verified live, use the exact CSS below.**
+   - The gap isn't from `.clueBar`'s `margin-bottom: 8px` as it might look — that's already small. The real cause: `.solverGridPanel .gridWrap { display: grid; place-items: center; }` was written back when `.gridWrap` had a single child (`.grid`) to center. Now it has two children (`.clueBar`, `.grid`) stacked in an implicit two-row grid. With no explicit `grid-template-rows`, both rows are `auto`-sized, and the browser's default content distribution stretches *both* auto rows to share any leftover vertical space in `.gridWrap` (whenever the panel is taller than the bar+grid combined) — then `place-items: center` centers each child within its own now-inflated row. The result: a gap between the bar and the grid that has nothing to do with any margin and instead scales with how much spare vertical space the panel happens to have. Measured directly: 8px at 1440×900 (little spare space, hard to notice), but 252–298px at taller/narrower viewports (900×1200, 1024×1300, 1100×1400) — confirms the scaling relationship.
+   - **Fix, verified**: switch `.solverGridPanel .gridWrap` from CSS Grid to a flex column:
+     ```css
+     .solverGridPanel .gridWrap {
+       flex: 1;
+       min-height: 0;
+       display: flex;
+       flex-direction: column;
+       align-items: center;
+     }
+     ```
+     This keeps `.clueBar` at its natural height and horizontally centers both children (flex `align-items: center` on the cross axis), but no longer distributes leftover vertical space *between* them — any spare space now falls below the grid instead, which reads better anyway (bar and grid stay visually anchored together). Verified: gap is now a consistent 8px at every one of the previously-tested viewport sizes (both the small-gap and huge-gap cases). Also re-ran T022's original 12-viewport overflow-clipping regression sweep after this change — zero overflow at every size, confirming this doesn't reintroduce that earlier bug.
+   - This is the only CSS change needed for this item — `.solverGridPanel .grid`'s sizing rule (the `calc(100cqmin - 24px)` from T022) is untouched and still correct.
+
+**4. Clicking the logo while solving a puzzle (`/p/:slug`) navigates to `/`, which is `RequireAuth`-gated — for an unauthenticated solver this dumps them on a login screen and silently discards their in-progress solve (filled letters, timer) since none of that is persisted.** Fix: while on a solver route, the logo should not be a navigation trigger at all.
+   - In `AppShell` (`App.tsx`), add `const isSolverRoute = location.pathname.startsWith('/p/');` (it already has `location` from `useLocation()`). When `isSolverRoute` is true, render the logo as a plain, non-interactive `<img>` (no `<button>` wrapper, no `onClick`, no `goHome` call) instead of the current `<button className="logoButton" onClick={goHome}>`. Keep the existing button behavior unchanged for every other route.
+   - Scope this narrowly to just the logo, as asked — don't touch the `Puzzles`/`New puzzle`/`Sign out` nav buttons (those only render when `session` is truthy, which is a separate, narrower case not covered by this task).
+
+**Verify:** solver view shows only `Solving as **Name**` (no link, no separator); no "Active: ..." text anywhere in solver mode; the clue-bar-to-grid gap stays visually small and constant across a few different browser window sizes (try resizing tall/narrow vs. wide/short); as an unauthenticated visitor on a `/p/:slug` link, confirm clicking the logo does nothing (no navigation, progress stays intact) while the same logo still works normally as a home link on every other page.
+
+Scope: `CrosswordPlayer.tsx`, `App.tsx`, `styles.css`.
+
