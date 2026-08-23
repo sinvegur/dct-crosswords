@@ -66,3 +66,30 @@ Four small solver-mode (`CrosswordPlayer.tsx` + `App.tsx`) polish items from liv
 
 Scope: `CrosswordPlayer.tsx`, `App.tsx`, `styles.css`.
 
+---
+
+## T027 — [READY FOR REVIEW] Name-gate screen: fix double label spacing and input/button width mismatch
+
+Two small CSS bugs on the solver name-gate screen (`App.tsx`'s `PlayPage`, the "Enter your name" form before solving starts), both root-caused and verified live with real measurements — apply the exact fixes below, no design judgment needed here.
+
+**1. The gap between "YOUR NAME" and the input box is double what's intended.** The label (`<span className="fieldLabel">`) sits inside `<label className="loginField">` alongside the `<input>`. `.loginField` is `display:flex; flex-direction:column; gap:6px`, which already spaces its two children — but `.fieldLabel` *also* has its own `margin-bottom: 6px` (needed elsewhere, e.g. `PuzzleDesigner.tsx`'s `.fieldBlock` usage, which isn't flex-based and relies on that margin). Margin and flex `gap` both apply and stack, so the real on-screen gap is 12px, not 6px. Measured directly: `gapLabelToInput` computed as exactly 12px before, 6px after the fix below.
+   - **Fix**: add a scoped override so `.fieldLabel`'s margin is zeroed out specifically inside `.loginField` (leaving the base `.fieldLabel` rule, and its `.fieldBlock` usage elsewhere, untouched):
+     ```css
+     .loginField .fieldLabel {
+       margin-bottom: 0;
+     }
+     ```
+
+**2. The input box is measurably wider than the "Start" button below it (and everything above it), breaking the visual symmetry.** Root cause: `.loginField input` has no `box-sizing` set, so it uses the browser's default `content-box` for `<input>` elements — meaning its `padding: 8px 10px` and `border: 1px` get added *on top of* its `width: 100%`, making it wider than its container. `<button>` elements default to `border-box` in most browsers, so `.btn`'s `width: 100%` (from `.solverGateForm button`) renders at the container's actual width with no such inflation. Measured directly at one viewport: input rendered at 342px wide vs. the button's 320px — a 22px gap, which is exactly `padding (2×10px) + border (2×1px)`. This isn't limited to the name-gate screen either — `.loginField input` is shared with the Creator sign-in form (email/password), which has the identical latent bug (confirmed live: both its inputs also rendered wider than its "Sign in" button before the fix, all three matched exactly after).
+   - **Fix**: add the missing `box-sizing` to the shared rule:
+     ```css
+     .loginField input {
+       box-sizing: border-box;
+       /* existing declarations unchanged */
+     }
+     ```
+
+**Verify:** on the name-gate screen, "YOUR NAME" sits closer to the input (visibly tighter, not the current noticeable gap); the input box's left *and* right edges line up exactly with the "Start" button's edges below it (no overhang on either side); repeat the same edge-alignment check on the Creator sign-in form (email input, password input, and "Sign in" button should all now match widths exactly, where before the two inputs were wider than the button).
+
+Scope: `styles.css` only — no JSX/component changes needed for either fix.
+

@@ -424,7 +424,12 @@ textarea {
   gap: 6px;
 }
 
+.loginField .fieldLabel {
+  margin-bottom: 0;
+}
+
 .loginField input {
+  box-sizing: border-box;
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 8px 10px;
