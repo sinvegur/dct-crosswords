@@ -32,7 +32,7 @@ Scope: `CrosswordPlayer.tsx`, `PuzzleDesigner.tsx` only.
 
 ---
 
-## T020 — [TODO] Fix intermittent Backspace/entry-tracking bug in the designer grid
+## T020 — [READY FOR REVIEW] Fix intermittent Backspace/entry-tracking bug in the designer grid
 
 **Reported as "sometimes the back button works, sometimes not" while editing an existing puzzle in `PuzzleDesigner.tsx`.** Diagnosed by carefully reading the code (not live-reproduced — `/design` is auth-gated and I don't have/want creator credentials, so verify this yourself interactively, not just by re-reading the diff, given the "sometimes" nature makes it easy to think it's fixed when it isn't).
 

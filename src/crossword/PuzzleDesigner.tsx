@@ -10,7 +10,7 @@ import {
   type Template15,
 } from '@/data/templates';
 import { registerGuard, runGuarded, unregisterGuard } from '@/lib/navigationGuard';
-import { SIZE_15, computeEntries15, type Direction } from './engine';
+import { SIZE_15, computeEntries15, type Direction, type Entry } from './engine';
 import type { Puzzle15 } from './types';
 
 const TOOLBAR_ICON_SIZE = 16;
@@ -242,6 +242,66 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
     setActiveCellIndex(cellIndex);
   };
 
+  const resolveEntryAtCell = (cellIndex: number, direction: Direction): Entry | undefined => {
+    if (!computed) return undefined;
+    const { row, col } = posOf(cellIndex);
+    const acrossNum = computed.acrossEntryNumberByCell.get(`${row},${col}`);
+    const downNum = computed.downEntryNumberByCell.get(`${row},${col}`);
+
+    let resolvedDirection = direction;
+    let entryNumber: number | undefined;
+
+    if (direction === 'across' && acrossNum != null) {
+      entryNumber = acrossNum;
+    } else if (direction === 'down' && downNum != null) {
+      entryNumber = downNum;
+    } else if (acrossNum != null) {
+      resolvedDirection = 'across';
+      entryNumber = acrossNum;
+    } else if (downNum != null) {
+      resolvedDirection = 'down';
+      entryNumber = downNum;
+    }
+
+    if (entryNumber == null) return undefined;
+    return computed.entryByNumberDirection(resolvedDirection, entryNumber);
+  };
+
+  const moveInResolvedEntry = (entry: Entry, from: number, delta: 1 | -1) => {
+    const indices = entry.cells.map((c) => idxOf(c.row, c.col));
+    const pos = indices.indexOf(from);
+    if (pos === -1) return;
+    const next = indices[pos + delta];
+    if (next == null) return;
+    pickCell(next);
+    focusCell(next);
+  };
+
+  const backspaceEmptyCell = (cellIndex: number) => {
+    pickCell(cellIndex);
+    let entry = resolveEntryAtCell(cellIndex, activeDirection);
+    if (!entry) return;
+
+    let indices = entry.cells.map((c) => idxOf(c.row, c.col));
+    let pos = indices.indexOf(cellIndex);
+
+    if (pos === -1) {
+      entry = resolveEntryAtCell(cellIndex, activeDirection === 'across' ? 'down' : 'across');
+      if (!entry) return;
+      indices = entry.cells.map((c) => idxOf(c.row, c.col));
+      pos = indices.indexOf(cellIndex);
+      if (pos === -1) return;
+      pickCell(cellIndex);
+    }
+
+    if (pos === 0) return;
+
+    const prev = indices[pos - 1]!;
+    setCellLetter(prev, '');
+    pickCell(prev);
+    focusCell(prev);
+  };
+
   const toggleDirection = () => {
     if (activeCellIndex == null || !computed) return;
     const { row, col } = posOf(activeCellIndex);
@@ -261,23 +321,15 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
     setActiveCellIndex(cellIndex);
   };
 
-  const moveInEntry = (from: number, delta: 1 | -1) => {
-    if (!activeEntry) return;
-    const indices = activeEntry.cells.map((c) => idxOf(c.row, c.col));
-    const pos = indices.indexOf(from);
-    if (pos === -1) return;
-    const next = indices[pos + delta];
-    if (next == null) return;
-    focusCell(next);
-  };
-
   const onCellChange = (cellIndex: number, raw: string) => {
     if (editMode === 'block') return;
     pickCell(cellIndex);
     const letter = normalizeLetter(raw);
     setCellLetter(cellIndex, letter);
-    if (letter) moveInEntry(cellIndex, 1);
-    else moveInEntry(cellIndex, -1);
+    const entry = resolveEntryAtCell(cellIndex, activeDirection);
+    if (!entry) return;
+    if (letter) moveInResolvedEntry(entry, cellIndex, 1);
+    else moveInResolvedEntry(entry, cellIndex, -1);
   };
 
   const onCellClick = (cellIndex: number) => {
@@ -667,15 +719,8 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
                             // Let onChange clear current + move prev.
                             return;
                           }
-                          // Empty cell: onChange won't fire — clear previous + move.
                           e.preventDefault();
-                          if (!activeEntry) return;
-                          const indices = activeEntry.cells.map((c) => idxOf(c.row, c.col));
-                          const pos = indices.indexOf(cellIndex);
-                          if (pos <= 0) return;
-                          const prev = indices[pos - 1];
-                          setCellLetter(prev, '');
-                          focusCell(prev);
+                          backspaceEmptyCell(cellIndex);
                         }
                       }}
                     />

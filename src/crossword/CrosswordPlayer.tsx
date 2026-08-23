@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Puzzle15 } from './types';
-import { SIZE_15, type Direction, computeEntries15 } from './engine';
+import { SIZE_15, type Direction, type Entry, computeEntries15 } from './engine';
 
 function idxOf(row: number, col: number) {
   return row * SIZE_15 + col;
@@ -93,39 +93,6 @@ export function CrosswordPlayer({ puzzle }: { puzzle: Puzzle15 }) {
     if (el) el.focus();
   };
 
-  const moveToNextInActiveEntry = (currentCellIndex: number, direction: Direction) => {
-    const entry =
-      direction === 'across'
-        ? computed.entriesAcross.find((e) => e.number === activeEntryNumber)
-        : computed.entriesDown.find((e) => e.number === activeEntryNumber);
-
-    if (!entry) return;
-
-    const indices = entry.cells.map((c) => idxOf(c.row, c.col));
-    const pos = indices.indexOf(currentCellIndex);
-    if (pos === -1) return;
-    const next = indices[pos + 1];
-    if (next == null) return;
-    focusCell(next);
-    setActiveCellIndex(next);
-  };
-
-  const moveToPrevInActiveEntry = (currentCellIndex: number, direction: Direction) => {
-    const entry =
-      direction === 'across'
-        ? computed.entriesAcross.find((e) => e.number === activeEntryNumber)
-        : computed.entriesDown.find((e) => e.number === activeEntryNumber);
-
-    if (!entry) return;
-    const indices = entry.cells.map((c) => idxOf(c.row, c.col));
-    const pos = indices.indexOf(currentCellIndex);
-    if (pos === -1) return;
-    const prev = indices[pos - 1];
-    if (prev == null) return;
-    focusCell(prev);
-    setActiveCellIndex(prev);
-  };
-
   const handlePickCell = (cellIndex: number) => {
     if (blockSet.has(cellIndex)) return;
     const { row, col } = posOf(cellIndex);
@@ -148,6 +115,69 @@ export function CrosswordPlayer({ puzzle }: { puzzle: Puzzle15 }) {
     }
 
     setActiveCellIndex(cellIndex);
+  };
+
+  const resolveEntryAtCell = (cellIndex: number, direction: Direction): Entry | undefined => {
+    const { row, col } = posOf(cellIndex);
+    const acrossNum = computed.acrossEntryNumberByCell.get(keyOf(row, col));
+    const downNum = computed.downEntryNumberByCell.get(keyOf(row, col));
+
+    let resolvedDirection = direction;
+    let entryNumber: number | undefined;
+
+    if (direction === 'across' && acrossNum != null) {
+      entryNumber = acrossNum;
+    } else if (direction === 'down' && downNum != null) {
+      entryNumber = downNum;
+    } else if (acrossNum != null) {
+      resolvedDirection = 'across';
+      entryNumber = acrossNum;
+    } else if (downNum != null) {
+      resolvedDirection = 'down';
+      entryNumber = downNum;
+    }
+
+    if (entryNumber == null) return undefined;
+    return computed.entryByNumberDirection(resolvedDirection, entryNumber);
+  };
+
+  const moveInResolvedEntry = (entry: Entry, from: number, delta: 1 | -1) => {
+    const indices = entry.cells.map((c) => idxOf(c.row, c.col));
+    const pos = indices.indexOf(from);
+    if (pos === -1) return;
+    const next = indices[pos + delta];
+    if (next == null) return;
+    handlePickCell(next);
+    focusCell(next);
+    setActiveCellIndex(next);
+  };
+
+  const backspaceEmptyCell = (cellIndex: number) => {
+    handlePickCell(cellIndex);
+    let entry = resolveEntryAtCell(cellIndex, activeDirection);
+    if (!entry) return;
+
+    let indices = entry.cells.map((c) => idxOf(c.row, c.col));
+    let pos = indices.indexOf(cellIndex);
+
+    if (pos === -1) {
+      entry = resolveEntryAtCell(cellIndex, activeDirection === 'across' ? 'down' : 'across');
+      if (!entry) return;
+      indices = entry.cells.map((c) => idxOf(c.row, c.col));
+      pos = indices.indexOf(cellIndex);
+      if (pos === -1) return;
+      handlePickCell(cellIndex);
+    }
+
+    if (pos === 0) return;
+
+    const prev = indices[pos - 1]!;
+    const nextFilled = filled.slice();
+    nextFilled[prev] = '';
+    setFilled(nextFilled);
+    handlePickCell(prev);
+    focusCell(prev);
+    setActiveCellIndex(prev);
   };
 
   const toggleDirectionForActiveCell = () => {
@@ -190,10 +220,7 @@ export function CrosswordPlayer({ puzzle }: { puzzle: Puzzle15 }) {
 
   const onCellInputChange = (cellIndex: number, raw: string) => {
     if (blockSet.has(cellIndex)) return;
-    if (!activeEntry) {
-      // User typed before selecting an entry; pick based on activeDirection membership.
-      handlePickCell(cellIndex);
-    }
+    handlePickCell(cellIndex);
 
     const letter = normalizeLetter(raw);
     const next = filled.slice();
@@ -208,14 +235,11 @@ export function CrosswordPlayer({ puzzle }: { puzzle: Puzzle15 }) {
     setFilled(next);
     finishIfSolved(next);
 
-    const direction = activeDirection;
-    if (!activeEntry) return;
+    const entry = resolveEntryAtCell(cellIndex, activeDirection);
+    if (!entry) return;
 
-    if (!letter) {
-      moveToPrevInActiveEntry(cellIndex, direction);
-    } else {
-      moveToNextInActiveEntry(cellIndex, direction);
-    }
+    if (!letter) moveInResolvedEntry(entry, cellIndex, -1);
+    else moveInResolvedEntry(entry, cellIndex, 1);
   };
 
   return (
@@ -327,25 +351,10 @@ export function CrosswordPlayer({ puzzle }: { puzzle: Puzzle15 }) {
                       }
                       if (e.key === 'Backspace') {
                         if (filled[cellIndex]) {
-                          // Let onChange clear current + move prev.
                           return;
                         }
-                        // Empty cell: onChange won't fire — clear previous + move.
                         e.preventDefault();
-                        const entry =
-                          activeDirection === 'across'
-                            ? computed.entriesAcross.find((en) => en.number === activeEntryNumber)
-                            : computed.entriesDown.find((en) => en.number === activeEntryNumber);
-                        if (!entry) return;
-                        const indices = entry.cells.map((c) => idxOf(c.row, c.col));
-                        const pos = indices.indexOf(cellIndex);
-                        if (pos <= 0) return;
-                        const prev = indices[pos - 1];
-                        const nextFilled = filled.slice();
-                        nextFilled[prev] = '';
-                        setFilled(nextFilled);
-                        focusCell(prev);
-                        setActiveCellIndex(prev);
+                        backspaceEmptyCell(cellIndex);
                         return;
                       }
                       if (e.key === 'Escape') {
