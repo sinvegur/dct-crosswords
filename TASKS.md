@@ -30,22 +30,3 @@ Both `CrosswordPlayer.tsx` (button labeled "Toggle (SPACE)", in the ACROSS `dire
 
 Scope: `CrosswordPlayer.tsx`, `PuzzleDesigner.tsx` only.
 
----
-
-## T022 — [TODO] Solver-mode desktop UX: compact 3-column layout, Tab navigation, clickable clues
-
-**One task, one branch, deliberately** — these three are being done together instead of as three parallel branches, specifically because they all touch overlapping regions of `CrosswordPlayer.tsx` (the clue-list JSX especially), and parallel branches touching the same file is exactly what caused a real merge conflict a few tasks back (T018/T019 vs T020). Sequential within one task avoids repeating that. Reference screenshot showed a NYT-style layout: grid, ACROSS list, and DOWN list all visible simultaneously in three columns, no scrolling needed to see one at the expense of another.
-
-**1. Three-column desktop layout — grid, ACROSS, DOWN all visible together, no scroll-to-hide-the-other-list.**
-   - Currently `.layout` is two columns (`360px 1fr`): one panel holds *both* ACROSS and DOWN stacked in a single scrolling `.clues` div, the other holds the grid. Restructure into three panels/columns: ACROSS list, DOWN list, and the grid+controls — each its own independently-scrollable column (`overflow-y: auto` with a height tied to the viewport, not the page), so all three are visible together without the page itself needing to scroll.
-   - This is the "viewport-fit grid + scrollable clue columns" idea that was explicitly deferred as a future task back during T002's review — this is that task now.
-   - Preserve the existing mobile fallback behavior reasonably (currently `@media (max-width: 860px) { grid-template-columns: 1fr; }` stacks everything) — it doesn't need to be *optimized* for mobile in this task (that's still a separate planned pass), just don't leave it broken.
-
-**2. Tab / Shift+Tab navigation.** There's currently no Tab handling anywhere in the code — whatever "nothing happens" behavior is being seen is just an unhandled browser default, not a bug worth tracing further. Implement it properly instead: pressing Tab in a grid cell moves to the **first cell of the next entry** in the current direction (cycling across all across-entries, or all down-entries, wrapping around at the end); Shift+Tab moves to the previous entry the same way. This is the standard crossword-app convention. Add `e.preventDefault()` so it doesn't fall through to normal browser tab-order behavior.
-
-**3. Clickable clues that highlight the matching word in the grid.** Right now `CrosswordPlayer.tsx`'s clue list items have no `onClick` at all — purely decorative text. `PuzzleDesigner.tsx` already has exactly this pattern working correctly for its own clue list (`.clueEdit` items — `onClick` sets `activeDirection`/`activeEntryNumber` and focuses the entry's first cell) — mirror that same approach here, it doesn't need to be reinvented. Clicking a clue should: set it as the active entry/direction (which already drives the grid's existing highlight styling via `activeEntryCellIndices`/`cellActive` — no new highlighting logic needed, just correctly setting the state that already controls it) and focus the first cell of that word. Add pointer-cursor styling to the clue rows so they read as clickable.
-
-**Verify**: at a typical desktop width, confirm the grid and both full clue lists are all visible without needing to scroll the page to see one at the cost of hiding another (only the individual clue columns should scroll, independently, if a list is long). Confirm Tab/Shift+Tab cycle through entries correctly including wrap-around at the start/end. Click several different clues (both across and down) and confirm the grid highlight and active-clue highlighting both update correctly each time.
-
-Scope: `CrosswordPlayer.tsx`, `styles.css`.
-

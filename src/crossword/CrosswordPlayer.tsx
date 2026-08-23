@@ -261,6 +261,37 @@ export function CrosswordPlayer({ puzzle, solverName, onChangeName }: Props) {
     setActiveCellIndex(prev);
   };
 
+  const focusEntry = (direction: Direction, entryNumber: number) => {
+    const entry = computed.entryByNumberDirection(direction, entryNumber);
+    if (!entry || solved) return;
+    const firstCell = idxOf(entry.start.row, entry.start.col);
+    setActiveDirection(direction);
+    setActiveEntryNumber(entryNumber);
+    setActiveCellIndex(firstCell);
+    focusCell(firstCell);
+  };
+
+  const stepEntry = (delta: 1 | -1) => {
+    const entries = activeDirection === 'across' ? computed.entriesAcross : computed.entriesDown;
+    if (entries.length === 0) return;
+
+    const currentIdx =
+      activeEntryNumber == null
+        ? -1
+        : entries.findIndex((entry) => entry.number === activeEntryNumber);
+
+    let nextIdx: number;
+    if (currentIdx === -1) {
+      nextIdx = delta === 1 ? 0 : entries.length - 1;
+    } else {
+      nextIdx = currentIdx + delta;
+      if (nextIdx < 0) nextIdx = entries.length - 1;
+      if (nextIdx >= entries.length) nextIdx = 0;
+    }
+
+    focusEntry(activeDirection, entries[nextIdx]!.number);
+  };
+
   const toggleDirectionForActiveCell = () => {
     if (activeCellIndex == null) return;
     const { row, col } = posOf(activeCellIndex);
@@ -328,51 +359,56 @@ export function CrosswordPlayer({ puzzle, solverName, onChangeName }: Props) {
     userRank != null && leaderboard.length > 0 && !userOnLeaderboard;
 
   return (
-    <div className="layout">
-      <div className="panel">
-        <div className="panelHeader">Clues</div>
-        <div className="clues">
-          <div className="directionBlock">
-            <div className="directionHeader">
-              <span>ACROSS</span>
-              <button className="btn" onClick={toggleDirectionForActiveCell} disabled={activeCellIndex == null || solved}>
-                Toggle (SPACE)
-              </button>
-            </div>
-            {computed.entriesAcross.map((e) => {
-              const isActive = activeDirection === 'across' && activeEntryNumber === e.number;
-              const clue = puzzle.clues.across[e.number] ?? '';
-              return (
-                <div key={`across:${e.number}`} className={`clueItem ${isActive ? 'clueActive' : ''}`}>
-                  <div className="clueNum">{e.number}</div>
-                  <div className="clueText">{clue}</div>
-                </div>
-              );
-            })}
+    <div className="layout layoutSolver">
+      <div className="panel solverCluePanel">
+        <div className="panelHeader">Across</div>
+        <div className="clues cluesScroll">
+          <div className="directionHeader">
+            <span className="subtle">Toggle direction with SPACE</span>
           </div>
-
-          <div className="directionBlock">
-            <div className="directionHeader">
-              <span>DOWN</span>
-              <span className="hint">
-                {bestTimeMs != null && !solved ? `Best: ${formatElapsedMs(bestTimeMs)}` : ''}
-              </span>
-            </div>
-            {computed.entriesDown.map((e) => {
-              const isActive = activeDirection === 'down' && activeEntryNumber === e.number;
-              const clue = puzzle.clues.down[e.number] ?? '';
-              return (
-                <div key={`down:${e.number}`} className={`clueItem ${isActive ? 'clueActive' : ''}`}>
-                  <div className="clueNum">{e.number}</div>
-                  <div className="clueText">{clue}</div>
-                </div>
-              );
-            })}
-          </div>
+          {computed.entriesAcross.map((e) => {
+            const isActive = activeDirection === 'across' && activeEntryNumber === e.number;
+            const clue = puzzle.clues.across[e.number] ?? '';
+            return (
+              <div
+                key={`across:${e.number}`}
+                className={`clueItem clueItemClickable ${isActive ? 'clueActive' : ''}`}
+                onClick={() => focusEntry('across', e.number)}
+              >
+                <div className="clueNum">{e.number}</div>
+                <div className="clueText">{clue}</div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
-      <div className="panel">
+      <div className="panel solverCluePanel">
+        <div className="panelHeader">Down</div>
+        <div className="clues cluesScroll">
+          {bestTimeMs != null && !solved ? (
+            <div className="directionHeader">
+              <span className="hint">Best: {formatElapsedMs(bestTimeMs)}</span>
+            </div>
+          ) : null}
+          {computed.entriesDown.map((e) => {
+            const isActive = activeDirection === 'down' && activeEntryNumber === e.number;
+            const clue = puzzle.clues.down[e.number] ?? '';
+            return (
+              <div
+                key={`down:${e.number}`}
+                className={`clueItem clueItemClickable ${isActive ? 'clueActive' : ''}`}
+                onClick={() => focusEntry('down', e.number)}
+              >
+                <div className="clueNum">{e.number}</div>
+                <div className="clueText">{clue}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="panel solverGridPanel">
         <div className="controlsRow">
           <div>
             <div className="title" style={{ fontSize: 16 }}>
@@ -497,6 +533,12 @@ export function CrosswordPlayer({ puzzle, solverName, onChangeName }: Props) {
                       onFocus={() => handlePickCell(cellIndex)}
                       onChange={(e) => onCellInputChange(cellIndex, e.target.value)}
                       onKeyDown={(e) => {
+                        if (e.key === 'Tab') {
+                          e.preventDefault();
+                          if (solved) return;
+                          stepEntry(e.shiftKey ? -1 : 1);
+                          return;
+                        }
                         if (e.code === 'Space') {
                           e.preventDefault();
                           toggleDirectionForActiveCell();
