@@ -26,45 +26,69 @@ Both `CrosswordPlayer.tsx` (button labeled "Toggle (SPACE)", in the ACROSS `dire
    - `PuzzleDesigner.tsx`: the `.controlsRow` subtitle currently reads (Letter mode) `"Letter mode: type answers (Turkish uppercase). Toggle direction with SPACE."` — remove this line entirely for Letter mode (both the "type answers" part, which added no value, and the "toggle direction" part, now covered by the new text under ACROSS). Leave the Block mode text (`"Block mode: click cells to toggle white ↔ black."`) unchanged — that's a different, still-useful instruction.
    - `CrosswordPlayer.tsx`: the subtitle near the puzzle title currently reads `` "Click a cell, type letters (Turkish uppercase). Toggle direction with `SPACE`." `` (note: has stray literal backtick characters around SPACE in the current text — clean those up too as part of touching this line). Remove this subtitle entirely, or shorten it to just `"Click a cell, type letters (Turkish uppercase)."` without the direction part (your call which reads better) — the direction instruction itself should only live in the one new spot under ACROSS.
 
-**4. Compensate for the removed button — don't regress touch/mouse-only users.** Right now SPACE and the button are the *only* two ways to toggle direction; without a keyboard, a user sitting on a cell that starts both an across and down entry has no way to switch to the other direction without the button (clicking the same already-active cell currently just re-confirms the same direction, doesn't toggle). Fix: make clicking an **already-selected/active** cell toggle direction (if that cell belongs to both an across and a down entry) — standard crossword-app pattern. Implement this in both `CrosswordPlayer.tsx` (`handlePickCell`) and `PuzzleDesigner.tsx` (`pickCell`): if the clicked cell is already the active cell, and it has an entry in the *other* direction available, toggle to that direction instead of re-selecting the same one.
+**4. Compensate for the removed button — don't regress touch/mouse-only users.** Right now SPACE and the button are the *only* two ways to toggle direction; without a keyboard, a user sitting on a cell that starts both an across and down entry has no way to switch to the other direction without the button (clicking the same already-active cell currently just re-confirms the same direction, doesn't toggle). Fix: make clicking an **already-selected/active** cell toggle direction (if that cell belongs to both an across and a down entry) — standard crossword-app pattern. Implement this in both `CrosswordPlayer.tsx` (`handlePickCell`) and `PuzzleDesigner.tsx` (`pickCell`): if the clicked cell is already the active cell, and it has an entry in the *other* direction available, toggle to that direction instead of re-selecting the same one. **Note: the `CrosswordPlayer.tsx` half was shipped in T026 — when unblocking T011, only implement this in `PuzzleDesigner.tsx`.**
 
 Scope: `CrosswordPlayer.tsx`, `PuzzleDesigner.tsx` only.
 
 ---
 
-## T024 — [READY FOR REVIEW] Solver mode cosmetics: drop the name-change link, drop the "Active" label, tighten the clue-bar gap, and stop the logo from nuking solve progress
+## T025 — [CHANGES REQUESTED] Tab navigation: sequence across → down (don't wrap within the same list), and skip fully-filled entries
 
-Four small solver-mode (`CrosswordPlayer.tsx` + `App.tsx`) polish items from live testing.
+Two related bugs in `stepEntry` (`CrosswordPlayer.tsx`), confirmed against the current code — only one caller (`stepEntry`, from the Tab/Shift+Tab handler on the cell `<input>`), so its internals are safe to rework freely.
 
-**1. Remove "Not you? Change name" — just show the solver's name, bold.**
-   - In `CrosswordPlayer.tsx`'s `controlsRow` (around the `solverMeta` div), currently: `Solving as {solverName}` followed by a `·` separator and a `"Not you? Change name"` button (calls the `onChangeName` prop). Remove the separator and the button entirely, and bold the name: `Solving as <strong>{solverName}</strong>`.
-   - Since this was the only caller of `onChangeName`, remove the prop from `CrosswordPlayer`'s `Props` type and its destructuring too.
-   - In `App.tsx`, remove the now-dead `onChangeName={openChangeName}` prop passed to `<CrosswordPlayer />`, and remove the `openChangeName` function itself (it has no other callers — verify that before deleting, but it should be the only one). **Leave `showNameGate`/`nameDraft`/`beginWithName` and the initial name-gate screen completely untouched** — those still handle first-time name entry, this task only removes the ability to *change* an already-set name from inside the solver view.
+**1. Tab from the last ACROSS entry should continue into the first DOWN entry (and vice versa via Shift+Tab), not wrap back to the top of the same list.** Currently: `const entries = activeDirection === 'across' ? computed.entriesAcross : computed.entriesDown;` — `stepEntry` only ever walks within whichever single list matches `activeDirection`, and wraps `nextIdx` back to `0` / `entries.length - 1` inside that same list. So Tab-ing past the last across clue just loops back to the first across clue, never touching the down list (and the reverse for down).
+   - Fix: treat ACROSS and DOWN as one combined, circular sequence — all of `computed.entriesAcross` in order, followed by all of `computed.entriesDown` in order (this matches the order both lists are already rendered in, top to bottom in their columns). Stepping forward off the end of the across portion continues into the start of the down portion; stepping forward off the end of the down portion wraps back to the start of the across portion (and symmetrically backward for Shift+Tab). Reaching a down entry via this sequence must also switch `activeDirection` to `'down'` (and back to `'across'` when the sequence lands on an across entry) — `focusEntry(direction, number)` already does this correctly, just make sure `stepEntry` passes the *target* entry's own direction, not the currently-active one.
+   - This is **not** full numeric interleaving (1A, 1D, 2A, 2D, ...) — just exhaust the current direction's list, then continue into the other list from its start. Don't build anything fancier than that.
 
-**2. Remove the "Active: DOWN 7" label under the timer.** In `CrosswordPlayer.tsx`, remove the `{!solved ? (<div className="subtle">Active: ...</div>) : null}` block entirely (sits directly under `.solverTimer` in the top-right of `controlsRow`). `activeDirection`/`activeEntry` are still used elsewhere (the clue bar, highlighting logic) — don't touch those, just delete this one display block.
+**2. Entries the solver has already fully filled in should be skipped when Tab/Shift+Tab lands on them.** Not implemented at all currently — `stepEntry` has no awareness of fill state, so Tab happily lands on/cycles through entries that are already completely filled in, which is dead time for the solver. "Fully filled" here means every cell in the entry has *some* letter in it (`filled[cellIndex]` is non-empty) — **not** "correctly filled against the solution"; a filled-but-wrong entry should still count as filled and be skipped, since the point is avoiding re-visiting entries that don't need more typing, not flagging correctness (that's a different, unrelated feature). Flag it if this reading seems off before you build it — it's a judgment call on ambiguous wording, not a hard spec.
+   - Add a small helper, e.g. `isEntryFilled(entry: Entry) => entry.cells.every((c) => filled[idxOf(c.row, c.col)])`.
+   - In the new combined-sequence `stepEntry`, when stepping in a given direction (+1/-1), skip over any entry where `isEntryFilled` is true and keep advancing until an unfilled entry is found. This must also skip the *currently active* entry itself if it just became fully filled (e.g., solver typed the last letter of an entry and immediately hit Tab) — don't special-case "skip only other entries."
+   - Guard against an infinite loop in the pathological case where every entry happens to be filled (e.g., puzzle just got solved on this keystroke) — bound the skip search to at most one full pass over the combined list, and simply do nothing (no navigation) if no unfilled entry is found. In practice this shouldn't come up much since a fully-solved puzzle swaps to the results screen, but don't leave it able to infinite-loop.
 
-**3. Reduce the gap between the blue clue bar and the grid below it — root cause found and fix verified live, use the exact CSS below.**
-   - The gap isn't from `.clueBar`'s `margin-bottom: 8px` as it might look — that's already small. The real cause: `.solverGridPanel .gridWrap { display: grid; place-items: center; }` was written back when `.gridWrap` had a single child (`.grid`) to center. Now it has two children (`.clueBar`, `.grid`) stacked in an implicit two-row grid. With no explicit `grid-template-rows`, both rows are `auto`-sized, and the browser's default content distribution stretches *both* auto rows to share any leftover vertical space in `.gridWrap` (whenever the panel is taller than the bar+grid combined) — then `place-items: center` centers each child within its own now-inflated row. The result: a gap between the bar and the grid that has nothing to do with any margin and instead scales with how much spare vertical space the panel happens to have. Measured directly: 8px at 1440×900 (little spare space, hard to notice), but 252–298px at taller/narrower viewports (900×1200, 1024×1300, 1100×1400) — confirms the scaling relationship.
-   - **Fix, verified**: switch `.solverGridPanel .gridWrap` from CSS Grid to a flex column:
-     ```css
-     .solverGridPanel .gridWrap {
-       flex: 1;
-       min-height: 0;
-       display: flex;
-       flex-direction: column;
-       align-items: center;
-     }
-     ```
-     This keeps `.clueBar` at its natural height and horizontally centers both children (flex `align-items: center` on the cross axis), but no longer distributes leftover vertical space *between* them — any spare space now falls below the grid instead, which reads better anyway (bar and grid stay visually anchored together). Verified: gap is now a consistent 8px at every one of the previously-tested viewport sizes (both the small-gap and huge-gap cases). Also re-ran T022's original 12-viewport overflow-clipping regression sweep after this change — zero overflow at every size, confirming this doesn't reintroduce that earlier bug.
-   - This is the only CSS change needed for this item — `.solverGridPanel .grid`'s sizing rule (the `calc(100cqmin - 24px)` from T022) is untouched and still correct.
+**Verify:** on a puzzle with a mix of filled/unfilled entries, Tab from the last ACROSS entry lands on the first *unfilled* DOWN entry (not wrapping to ACROSS #1, and not landing on an already-filled DOWN entry); Shift+Tab from the first ACROSS entry lands on the last *unfilled* DOWN entry; fill in an entry completely mid-puzzle, then Tab away from it, and confirm Tab never lands back on it later in the cycle; confirm direction highlighting (grid + active clue in the ACROSS/DOWN columns) updates correctly every time Tab crosses from one list into the other.
 
-**4. Clicking the logo while solving a puzzle (`/p/:slug`) navigates to `/`, which is `RequireAuth`-gated — for an unauthenticated solver this dumps them on a login screen and silently discards their in-progress solve (filled letters, timer) since none of that is persisted.** Fix: while on a solver route, the logo should not be a navigation trigger at all.
-   - In `AppShell` (`App.tsx`), add `const isSolverRoute = location.pathname.startsWith('/p/');` (it already has `location` from `useLocation()`). When `isSolverRoute` is true, render the logo as a plain, non-interactive `<img>` (no `<button>` wrapper, no `onClick`, no `goHome` call) instead of the current `<button className="logoButton" onClick={goHome}>`. Keep the existing button behavior unchanged for every other route.
-   - Scope this narrowly to just the logo, as asked — don't touch the `Puzzles`/`New puzzle`/`Sign out` nav buttons (those only render when `session` is truthy, which is a separate, narrower case not covered by this task).
+Scope: `CrosswordPlayer.tsx` only.
 
-**Verify:** solver view shows only `Solving as **Name**` (no link, no separator); no "Active: ..." text anywhere in solver mode; the clue-bar-to-grid gap stays visually small and constant across a few different browser window sizes (try resizing tall/narrow vs. wide/short); as an unauthenticated visitor on a `/p/:slug` link, confirm clicking the logo does nothing (no navigation, progress stays intact) while the same logo still works normally as a home link on every other page.
+---
 
-Scope: `CrosswordPlayer.tsx`, `App.tsx`, `styles.css`.
+**Review notes (Claude) — `stepEntry`'s own index math is correct (verified with a debug instrumentation pass, logging every step of its internal loop), but the feature still visibly fails: live testing found a separate, pre-existing bug that corrupts the result whenever `focusEntry` crosses from one direction into the other. Root-caused and a fix verified live — this is a small, surgical change, not a rewrite of anything T025 already built.**
+
+**The bug:** `focusEntry(direction, entryNumber)` calls `setActiveDirection(direction)`, `setActiveEntryNumber(entryNumber)`, then `focusCell(firstCell)`, which calls `el.focus()`. That `.focus()` synchronously fires the cell `<input>`'s `onFocus={() => handlePickCell(cellIndex)}` — and `handlePickCell` reads `activeDirection` from its render closure, which at this point in the same synchronous call stack **still holds the pre-update value** (React hasn't re-rendered yet). So `handlePickCell` re-derives the entry number using the *old* direction and overwrites the correct one `focusEntry` just set — direction ends up right, but the entry number silently gets replaced by whichever entry the *old* direction covers at that cell.
+
+Confirmed via direct instrumentation: Shift+Tab from ACROSS 1 correctly computed `nextIdx` → DOWN 13 internally, but the final active state showed DOWN 1 (1 being whatever ACROSS entry happened to cover DOWN 13's starting cell). **This is not new to T025** — it's a latent bug in `focusEntry`/`focusCell` that predates this task. Confirmed it independently breaks plain clue-clicking too: with ACROSS 1 active, clicking the "Down 5" clue directly (no keyboard involved) also incorrectly landed on "Down 1" instead of "Down 5", for the same reason. T025 is what exercises this path for the first time in a way that's easy to trigger and notice (crossing directions via Tab is common), but the underlying `focusCell`/`onFocus` interaction should be fixed regardless.
+
+**The fix — verified live**: suppress the redundant `onFocus`-driven `handlePickCell` call specifically when the focus was triggered programmatically by `focusCell` (every one of `focusCell`'s callers — `focusEntry`, `moveInResolvedEntry`, `backspaceEmptyCell` — already explicitly set the correct state before calling it, so that `onFocus` call is always redundant in this path; it should only fire for a genuine user-driven focus change, e.g. a raw click landing directly on the `<input>`).
+
+```tsx
+// new ref alongside inputsRef/clueRowRefs
+const skipNextFocusPickRef = useRef(false);
+
+const focusCell = (cellIndex: number | null) => {
+  if (cellIndex == null) return;
+  const el = inputsRef.current[cellIndex];
+  if (!el) return;
+  skipNextFocusPickRef.current = true;
+  el.focus();
+  el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+};
+```
+
+```tsx
+// the cell <input>'s onFocus
+onFocus={() => {
+  if (skipNextFocusPickRef.current) {
+    skipNextFocusPickRef.current = false;
+    return;
+  }
+  handlePickCell(cellIndex);
+}}
+```
+
+Verified this exact change live: re-tested Shift+Tab from ACROSS 1 (now correctly lands on DOWN 13), the direct clue-click case (now correctly lands on DOWN 5), plus a regression pass — raw grid-cell clicks, typing forward through an entry, backspace-moves-back, and the skip-filled-entry logic (filled an entry, tabbed away, confirmed it's skipped and never revisited) all still behave exactly as before. Build (`npm run build`) passes clean.
+
+**Verify:** everything already listed in T025's own Verify section, plus: with ACROSS active, click a DOWN clue directly (mouse, no keyboard) and confirm it activates the clue you actually clicked, not some other one.
+
+Scope: still just `CrosswordPlayer.tsx`.
 
 ---
 

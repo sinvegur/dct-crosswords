@@ -8,6 +8,7 @@
   --block-bg: #111827;
   --cell-bg: #ffffff;
   --cell-bg-active: #fff7ed;
+  --cell-bg-current: #fde047;
   --font-display: 'Fraunces Variable', ui-serif, Georgia, serif;
   --font-body: 'Literata Variable', ui-serif, Georgia, serif;
   --font-grid: 'Atkinson Hyperlegible Next', ui-sans-serif, system-ui, sans-serif;
@@ -301,6 +302,11 @@ textarea {
 .cellActive {
   background: var(--cell-bg-active);
   border-color: #f59e0b;
+}
+
+.cellCurrent {
+  background: var(--cell-bg-current);
+  border-color: #ca8a04;
 }
 
 .controlsRow {
