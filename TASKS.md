@@ -118,7 +118,7 @@ Scope: `CrosswordPlayer.tsx` only.
 
 ---
 
-## T030 — [CHANGES REQUESTED] Creator-facing leaderboard view: new button on the puzzle list, opens a modal with the full attempt list
+## T030 — [READY FOR REVIEW] Creator-facing leaderboard view: new button on the puzzle list, opens a modal with the full attempt list
 
 Right now the leaderboard exists (`attempts` table, `getLeaderboard()` in `storage.ts`) but is only ever visible to a solver on the "Solved!" screen after they personally finish — there's no way for the creator to see who's played a puzzle or how they did without soloing it themselves. Adds a creator-facing view for this.
 
