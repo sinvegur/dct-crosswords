@@ -32,7 +32,31 @@ Scope: `CrosswordPlayer.tsx`, `PuzzleDesigner.tsx` only.
 
 ---
 
-## T018 — [TODO] Solver flow: name capture, live timer, leaderboard submission and results screen
+## T020 — [TODO] Fix intermittent Backspace/entry-tracking bug in the designer grid
+
+**Reported as "sometimes the back button works, sometimes not" while editing an existing puzzle in `PuzzleDesigner.tsx`.** Diagnosed by carefully reading the code (not live-reproduced — `/design` is auth-gated and I don't have/want creator credentials, so verify this yourself interactively, not just by re-reading the diff, given the "sometimes" nature makes it easy to think it's fixed when it isn't).
+
+**Bug #1 — definite, in the empty-cell Backspace handler** (`onKeyDown`, ~line 665-680): `if (pos <= 0) return;` treats two different situations identically:
+- `pos === 0`: the cursor is genuinely at the first cell of the active entry — correctly a no-op.
+- `pos === -1`: `activeEntry.cells` doesn't contain `cellIndex` **at all** — meaning the tracked active entry doesn't actually match the cell you're typing in. This is a state-tracking bug, not a boundary condition, and right now it's silently swallowed exactly like the correct case, making it look like "backspace just doesn't work" with no indication why.
+
+Fix: handle `pos === -1` distinctly from `pos === 0` — at minimum, don't silently no-op on a mismatch; ideally, resolve the *correct* entry for `cellIndex` fresh (from `computed.acrossEntryNumberByCell`/`downEntryNumberByCell`, not from the possibly-stale `activeEntry`/`activeDirection` state) before deciding whether there's a previous cell to move to.
+
+**Bug #2 — likely root cause of the intermittency:** `onCellChange` calls `pickCell(cellIndex)` (which updates `activeEntryNumber`/`activeDirection` via `setState`) and then, in the *same synchronous call*, reads `activeEntry` — a `useMemo` derived from that same state — via `moveInEntry`. State updates don't apply mid-function; `activeEntry` at that point still reflects whatever it was *before* this `pickCell` call, not after. Whether that's already correct depends on whether a prior `onFocus` already happened to sync it first — which is exactly the kind of thing that works most of the time and silently breaks specifically at cell/word transitions (clicking into a fresh cell/word, especially at across/down intersections).
+
+Fix: don't rely on `activeEntry` (state-derived, one render behind) immediately after calling `pickCell` in the same handler. Resolve the entry to move within directly from `cellIndex` and the direction at the moment of the call (same fresh-lookup approach as bug #1's fix), not from state that was just asked to update but hasn't yet.
+
+**Apply the same fix pattern to `CrosswordPlayer.tsx`'s equivalent logic too** (`handlePickCell`/`onCellInputChange`/the Backspace handler there) — it has the same shape (calls `handlePickCell` then reads `activeEntry` derived from state), so if this bug is real here, it's likely latent there too, even if not yet reported.
+
+**Verify interactively, not just by reading the diff**: in the designer, click directly into a cell that sits at an across/down intersection (don't click the entry list first, click the grid cell itself), type a few letters, then Backspace repeatedly — including right at a moment where you switch which word you're editing. Do this multiple times in different sequences, since the bug is intermittent — one successful pass doesn't confirm the fix. Do the same in the player view if you have a way to reach it.
+
+Scope: `PuzzleDesigner.tsx`, `CrosswordPlayer.tsx`.
+
+---
+
+## T018 — [MERGE PENDING, do not re-implement] Solver flow: name capture, live timer, leaderboard submission and results screen
+
+**Already implemented and reviewed on branch `t018-solver-leaderboard` — this text is just showing as pending on `main` because that branch (and `t019-t018-fixes`, built on top of it) haven't been merged yet. Do not start this from scratch. If you're reading this as your next task, stop and tell the user to merge the pending PRs first.**
 
 **No new SQL needed for this one** — the `attempts` table and its RLS policies (public read, public insert) were already set up in the original schema and haven't changed. This is entirely app-code work: `src/lib/storage.ts`, `App.tsx`'s `PlayPage`, and `CrosswordPlayer.tsx`.
 
