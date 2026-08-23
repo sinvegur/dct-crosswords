@@ -84,6 +84,37 @@ textarea {
   gap: 12px;
 }
 
+.layout.layoutSolver {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.25fr);
+  align-items: stretch;
+  height: calc(100dvh - 120px);
+  min-height: 520px;
+}
+
+.layout.layoutSolver > .panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.solverCluePanel .cluesScroll {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.solverGridPanel {
+  overflow-y: auto;
+}
+
+.clueItemClickable {
+  cursor: pointer;
+}
+
+.clueItemClickable:hover {
+  background: #f9fafb;
+}
+
 .panel {
   background: var(--panel);
   border: 1px solid var(--border);
@@ -520,6 +551,15 @@ textarea {
 @media (max-width: 860px) {
   .layout {
     grid-template-columns: 1fr;
+  }
+
+  .layout.layoutSolver {
+    height: auto;
+    min-height: 0;
+  }
+
+  .solverCluePanel .cluesScroll {
+    max-height: 280px;
   }
 }
 
