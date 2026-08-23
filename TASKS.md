@@ -32,7 +32,7 @@ Scope: `CrosswordPlayer.tsx`, `PuzzleDesigner.tsx` only.
 
 ---
 
-## T023 — [READY FOR REVIEW] Solver mode: remove leftover instruction text, fix Tab not auto-scrolling the active clue into view, add NYT-style compact clue bar above the grid
+## T023 — [CHANGES REQUESTED] Solver mode: remove leftover instruction text, fix Tab not auto-scrolling the active clue into view, add NYT-style compact clue bar above the grid
 
 Three related solver-mode (`CrosswordPlayer.tsx`) polish items from live user testing of T022's new layout.
 
@@ -58,4 +58,15 @@ Three related solver-mode (`CrosswordPlayer.tsx`) polish items from live user te
 - Confirm the clue bar's CSS doesn't depend on `.solverGridPanel`'s container-query setup from T022 (sanity check for the future mobile reuse — it doesn't need to actually render correctly on mobile in this task, just not be structurally coupled to the desktop grid panel).
 
 Scope: `CrosswordPlayer.tsx`, `styles.css`.
+
+---
+
+**Review notes (Claude) — items 1 and 2 confirmed correct against the diff, no changes needed there. Item 3 (clue bar) needs two cosmetic tweaks before this is done:**
+
+**1. Remove the prev/next arrow buttons from the desktop clue bar.** The user finds them useless in this three-column desktop layout (the entries are already fully visible/clickable in the ACROSS/DOWN columns, and Tab/Shift+Tab already cover keyboard navigation) — arrows only earn their keep in a future mobile layout where the clue list isn't visible alongside the grid. Remove both `<button className="clueBarNav" ...>` elements (and their `ChevronLeft`/`ChevronRight` icons) from the `.clueBar` JSX in `CrosswordPlayer.tsx`. Remove the now-unused `import { ChevronLeft, ChevronRight } from 'lucide-react';` line too. Leave `stepEntry` itself untouched — it's still wired to Tab/Shift+Tab and will be reused when a mobile clue-switcher is eventually built (separate future task, not part of this one).
+   - Remove the `.clueBarNav` CSS rules from `styles.css` (`.clueBarNav`, `.clueBarNav:disabled`, `.clueBarNav:not(:disabled):hover`) since nothing will reference them anymore. `.clueBar`'s `gap: 8px` (previously spacing the nav buttons from `.clueBarBody`) can be dropped too now that `.clueBarBody` is the bar's only child.
+
+**2. With the arrows gone, the bar is just the number+direction label and the clue text — add a bit more space between them for readability.** Currently `.clueBarBody` uses `gap: 8px` between `.clueBarLabel` and `.clueBarText`; bump it to something more generous, `~14-16px`, and re-check that the clue bar still reads cleanly with a long clue that wraps to two lines (the label shouldn't visually crowd the wrapped second line).
+
+**Verify:** confirm no arrow buttons render in the desktop clue bar, confirm `stepEntry` is still reachable via Tab/Shift+Tab (don't accidentally orphan it), confirm the label/text spacing reads more comfortably than before at a glance, and confirm the build has no unused-import warnings from the removed lucide-react icons.
 
