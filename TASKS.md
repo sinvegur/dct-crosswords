@@ -30,21 +30,3 @@ Both `CrosswordPlayer.tsx` (button labeled "Toggle (SPACE)", in the ACROSS `dire
 
 Scope: `CrosswordPlayer.tsx`, `PuzzleDesigner.tsx` only.
 
----
-
-## T021 — [READY FOR REVIEW] "Autofill" button in the designer, for fast test/preview publishing
-
-**Motivation:** creating a publishable puzzle currently requires manually filling every single letter and clue — real, tedious friction for testing the publish flow, URL generation, share modal, etc., not just for building a real puzzle. Add a quick way to skip straight to "publishable" for testing purposes.
-
-**1.** Add a button (e.g. "Autofill" or "Fill with test data") in `PuzzleDesigner.tsx`, placed near the Save draft/Publish buttons.
-
-**2.** On click, fill in **only the currently-blank parts** — don't overwrite letters or clues that already have real content, so this is safe to use on a puzzle you're partway through without losing work (this matters especially given T016's unsaved-changes guard exists specifically to protect in-progress edits — don't undermine that with a button that silently clobbers them):
-   - Every open grid cell that's currently empty gets filled with a placeholder letter (doesn't need to spell real words — cycling through A-Z is fine, e.g. reuse the same simple approach as generating test data elsewhere in this project).
-   - Every entry (across and down) whose clue is currently blank gets a placeholder clue (e.g. `"Test clue {number} {direction}"` or similar — doesn't need to be meaningful).
-
-**3.** After autofilling, the puzzle should immediately satisfy `canPublish` (assuming a title is already set, or default to the existing "New puzzle" title if blank) — the point is to unblock clicking Publish immediately afterward, not to leave anything else incomplete.
-
-**4.** This is a permanent, always-available convenience feature for the (single) creator, not a hidden dev-only flag — no need to gate it behind an environment check, this app has one trusted user.
-
-Scope: `PuzzleDesigner.tsx` only (plus `styles.css` only if the button needs anything not already covered by existing button styles).
-
