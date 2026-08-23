@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Puzzle15 } from './types';
 import { SIZE_15, type Direction, type Entry, computeEntries15 } from './engine';
 import {
@@ -519,15 +518,6 @@ export function CrosswordPlayer({ puzzle, solverName, onChangeName }: Props) {
         ) : (
           <div className="gridWrap">
             <div className="clueBar">
-              <button
-                type="button"
-                className="clueBarNav"
-                onClick={() => stepEntry(-1)}
-                disabled={!activeEntry}
-                aria-label="Previous clue"
-              >
-                <ChevronLeft size={20} aria-hidden />
-              </button>
               <div className="clueBarBody">
                 {activeEntry ? (
                   <>
@@ -541,15 +531,6 @@ export function CrosswordPlayer({ puzzle, solverName, onChangeName }: Props) {
                   <span className="clueBarText clueBarPlaceholder">Select a clue to begin</span>
                 )}
               </div>
-              <button
-                type="button"
-                className="clueBarNav"
-                onClick={() => stepEntry(1)}
-                disabled={!activeEntry}
-                aria-label="Next clue"
-              >
-                <ChevronRight size={20} aria-hidden />
-              </button>
             </div>
             <div
               className="grid"
