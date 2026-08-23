@@ -32,7 +32,7 @@ Scope: `CrosswordPlayer.tsx`, `PuzzleDesigner.tsx` only.
 
 ---
 
-## T022 — [READY FOR REVIEW] Solver-mode desktop UX: compact 3-column layout, Tab navigation, clickable clues
+## T022 — [CHANGES REQUESTED] Solver-mode desktop UX: compact 3-column layout, Tab navigation, clickable clues
 
 **Implementation notes:** Addressed review feedback — square cells via `aspect-ratio` on `.cell`; container-query scaling for letter/number sizes; wider grid column (`2fr`) with height-filling grid via `min(100cqw, 100cqh)` in `.solverGridPanel`.
 
@@ -65,4 +65,40 @@ Scope: `CrosswordPlayer.tsx`, `styles.css`.
    - **Fix**: increase the grid column's share noticeably (the exact ratio is a visual judgment call — aim for the grid clearly reading as the largest element, similar proportions to the reference screenshot, not just a modest edge over the other two), and make the grid actually grow to use the available height of its column (up to the point where width becomes the limiting factor instead) rather than sitting at whatever size its width band alone produces with slack space below.
 
 Re-verify all three together at multiple viewport widths (not just one) before marking ready again, given issue #1 specifically only showed up at certain widths and not others.
+
+---
+
+**Round 2 review (Claude) — the grid-prominence fix introduced a new, worse regression. Diagnosed and a working fix verified through direct iteration (not just theory) — use the exact CSS below, it's already confirmed to work, don't improvise a variation.**
+
+**What went wrong:** the revision's approach (`.solverGridPanel .gridWrap { container-type: size; display:flex; align-items:center; justify-content:center; } .solverGridPanel .grid { width: min(100cqw, 100cqh); height:auto; max-width:100%; max-height:100%; }`) produced a grid that was both too small (560px square when ~750px of space was actually available) *and* not centered (shifted noticeably right, large empty gap on the left) — confirmed via direct `getBoundingClientRect()` measurement in a live render, not just visually. This is a real, reproducible engine quirk: `aspect-ratio` combined with percentage-based `max-height` does not reliably resolve as naively expected on a flex item, and layering `container-type: size` + composed `min(100cqw, 100cqh)` on top of that compounds it further.
+
+**The fix that's actually verified to work** — tested via direct measurement at multiple viewport widths (1728px, 1280px), confirmed genuinely square, correctly sized to fill the tighter dimension, and correctly centered at every width tested:
+
+```css
+.solverGridPanel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  container-type: size;
+}
+
+.solverGridPanel .gridWrap {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+}
+
+.solverGridPanel .grid {
+  width: 100cqmin;
+  height: 100cqmin;
+}
+```
+
+Key differences from the previous attempt, both load-bearing: (1) `container-type: size` goes on `.solverGridPanel` (which has a genuinely fixed/stretched size from the top-level layout) rather than `.gridWrap` (whose size is flex-derived and created a circular dependency); (2) `.gridWrap` uses **CSS Grid** `place-items: center` rather than flexbox centering — flexbox centering combined with an aspect-ratio child produced wrong results in testing, grid centering didn't; (3) `100cqmin` (a single, dedicated container-query unit meaning "whichever of container-width/container-height is smaller") replaces the manual `min(100cqw, 100cqh)` composition, which was not resolving correctly.
+
+**One thing to double check, not yet fully confirmed either way**: with this fix, cells at a 1280px-wide viewport render at 37×37px (bigger than the 29px worst case from round 1, since the grid now correctly uses more of the available space) — the letter/number overlap fix from round 1 (the `cqi`-based `clamp()` sizing) looked *close but not confidently clear* at this size in testing, worth a careful zoomed-in look with a Turkish diacritic letter (Ğ, Ş, Ü, etc.) before considering this fully resolved.
+
+Verify the full picture again at 2-3 different viewport widths: square cells, grid genuinely filling and dominating its column (not floating with empty space around it), correctly centered, and no letter/number overlap.
 
