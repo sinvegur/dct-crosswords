@@ -118,7 +118,7 @@ Scope: `CrosswordPlayer.tsx` only.
 
 ---
 
-## T030 — [READY FOR REVIEW] Creator-facing leaderboard view: new button on the puzzle list, opens a modal with the full attempt list
+## T030 — [CHANGES REQUESTED] Creator-facing leaderboard view: new button on the puzzle list, opens a modal with the full attempt list
 
 Right now the leaderboard exists (`attempts` table, `getLeaderboard()` in `storage.ts`) but is only ever visible to a solver on the "Solved!" screen after they personally finish — there's no way for the creator to see who's played a puzzle or how they did without soloing it themselves. Adds a creator-facing view for this.
 
@@ -133,4 +133,20 @@ Right now the leaderboard exists (`attempts` table, `getLeaderboard()` in `stora
 **Verify:** click "Leaderboard" on a puzzle with existing attempts (e.g. one you've hit "Solve it" on a few times via T029) and confirm the full list shows, correctly sorted fastest-first, with name/time/date all populated. Click it on a puzzle with zero attempts and confirm the empty state instead of a blank modal. Confirm the button shows for both draft and published puzzles. Confirm Escape and clicking outside both close the modal, consistent with the delete-confirm modal's existing behavior.
 
 Scope: `App.tsx`, new file `src/components/PuzzleLeaderboardModal.tsx`, `styles.css` only if any new classes are genuinely needed (the existing `.modal*` classes should cover almost everything).
+
+---
+
+**Review notes (Claude) — the modal itself (`PuzzleLeaderboardModal.tsx`) is solid, confirmed against the diff: loading/error/empty states, full sorted list, escape/click-outside-to-close all correct, no changes needed there. The problem is the row-actions layout: the new "Leaderboard" button was added first (before the conditionally-rendered "Play" button), so draft rows show 3 buttons and published rows show 4, and because they're rendered as normal-width text buttons, the whole `.puzzleActions` group starts at a different horizontal position row to row — visibly ragged down the list (confirmed via the user's screenshot). Redesign requested, with a concrete direction already worked out:**
+
+**1. Convert all four buttons (Edit, Delete, Play, Leaderboard) to square icon-only buttons, reusing the existing `.toolbarControl` pattern from `PuzzleDesigner.tsx`'s edit-mode toolbar** (`src/styles.css` lines ~648–667 — `36px × 36px`, `border-radius: 8px`, centered icon, already has `aria-label`/`title` conventions worth copying exactly). Don't invent a new button style — this one already exists and already looks right for this. Icons from `lucide-react` (already a project dependency): `PencilLine` for Edit, `Trash2` for Delete, `Play` for Play, `Trophy` for Leaderboard (any of these four is a reasonable substitute if a better fit is obvious once wired up — not a hard requirement, just a sensible starting point). Every button still needs `aria-label` and `title` since there's no visible text anymore — non-negotiable for an icon-only control.
+
+**2. Fixed order, always exactly four slots, never conditionally omitted:** Edit, Delete, Play, Leaderboard (in that order — matches how the user described them, "always there" ones first). This is the actual fix for the misalignment: instead of `{p.status === 'published' ? <button>Play</button> : null}`, always render the `<button>`, and instead toggle its `disabled` prop:
+   - Edit, Delete: always enabled.
+   - Play: `disabled={p.status !== 'published'}`.
+   - Leaderboard: `disabled={p.status !== 'published'}` too, for now — see note below on why this isn't also checking attempt count.
+   - Add a greyed/disabled visual for `.toolbarControl:disabled` (doesn't exist yet — `.btn:disabled` already has a reasonable pattern, `opacity: 0.6; cursor: not-allowed;`, mirror that). On a disabled button, set `title` to something explaining why (e.g. `"Publish this puzzle to enable Play"`) rather than repeating the same label — a disabled icon-only button with no explanation is a dead end for the user.
+
+**3. Deliberately deferring one part of the original ask — flagging it rather than silently dropping it.** The user also suggested greying out "Leaderboard" specifically when a published puzzle has zero attempts yet (distinct from greying it out for being a draft). Implementing that correctly needs attempt *counts* available per-row in the puzzle list, which `listPuzzles()` doesn't currently fetch — doing it right means one added batched query (e.g. `attempts` grouped by `puzzle_id` for all listed puzzle IDs at once, not per-row) rather than an N+1 pattern. That's real, if small, added scope beyond a pure CSS/layout pass. For this round, Leaderboard is just gated on `status === 'published'` like Play is — clicking it on a puzzle nobody's solved yet already shows the modal's existing "No one has solved this puzzle yet" empty state, which covers the same user-facing need without the extra query. If the user wants the true greyed-when-empty version, that's a small, separate, well-scoped follow-up task.
+
+**Verify:** every row in the puzzle list — draft or published — shows exactly four square icon buttons in the same fixed position, no row narrower or wider than another. Draft rows: Play and Leaderboard visibly greyed out and non-clickable, with a tooltip explaining why on hover. Published rows: all four active. Confirm Edit/Delete still work exactly as before (only their visual style changed). Confirm the Leaderboard modal still opens and behaves exactly as already verified above.
 
