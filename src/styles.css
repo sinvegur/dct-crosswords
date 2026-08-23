@@ -133,6 +133,70 @@ textarea {
   background: #f9fafb;
 }
 
+.clueBar {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  background: #dbeafe;
+  border-radius: 10px;
+}
+
+.clueBarNav {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid #93c5fd;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1e3a8a;
+  cursor: pointer;
+}
+
+.clueBarNav:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.clueBarNav:not(:disabled):hover {
+  background: #dbeafe;
+}
+
+.clueBarBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.clueBarLabel {
+  flex-shrink: 0;
+  font-family: var(--font-grid);
+  font-weight: 700;
+  color: #1e3a8a;
+}
+
+.clueBarText {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  line-height: 1.35;
+  color: #111827;
+}
+
+.clueBarPlaceholder {
+  color: var(--muted);
+}
+
 .panel {
   background: var(--panel);
   border: 1px solid var(--border);

@@ -32,7 +32,7 @@ Scope: `CrosswordPlayer.tsx`, `PuzzleDesigner.tsx` only.
 
 ---
 
-## T023 — [TODO] Solver mode: remove leftover instruction text, fix Tab not auto-scrolling the active clue into view, add NYT-style compact clue bar above the grid
+## T023 — [READY FOR REVIEW] Solver mode: remove leftover instruction text, fix Tab not auto-scrolling the active clue into view, add NYT-style compact clue bar above the grid
 
 Three related solver-mode (`CrosswordPlayer.tsx`) polish items from live user testing of T022's new layout.
 
