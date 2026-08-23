@@ -383,6 +383,110 @@ textarea {
   flex-wrap: wrap;
 }
 
+.linkButton {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.linkButton:hover {
+  color: var(--text);
+}
+
+.solverGateForm {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 320px;
+  margin: 0 auto;
+  text-align: left;
+}
+
+.solverGateForm input {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 14px;
+  color: var(--text);
+  background: #fff;
+  width: 100%;
+}
+
+.solverGateForm button {
+  width: 100%;
+}
+
+.solverMeta {
+  margin-top: 4px;
+}
+
+.solverTimer {
+  font-family: var(--font-grid);
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.solverResults {
+  padding-bottom: 8px;
+}
+
+.solverResultsHeader {
+  padding: 12px 14px 8px;
+}
+
+.leaderboardList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.leaderboardRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+}
+
+.leaderboardRow:first-child {
+  border-top: none;
+}
+
+.leaderboardRowYou {
+  background: #f3f4f6;
+  font-weight: 700;
+}
+
+.leaderboardRank {
+  width: 1.5em;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.leaderboardName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.leaderboardTime {
+  font-family: var(--font-grid);
+  font-variant-numeric: tabular-nums;
+}
+
+.leaderboardYouOutside {
+  padding: 10px 14px 14px;
+  border-top: 1px solid var(--border);
+}
+
 .puzzleStatus {
   font-size: 11px;
   font-weight: 700;
@@ -560,6 +664,19 @@ textarea {
   gap: 8px;
   padding: 14px 18px;
   border-top: 1px solid var(--border);
+}
+
+.shareLinkBox {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #f9fafb;
+  overflow-x: auto;
+}
+
+.shareLinkText {
+  font-size: 13px;
+  word-break: break-all;
 }
 
 .templateCards {
