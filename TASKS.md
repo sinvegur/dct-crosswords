@@ -31,29 +31,23 @@ Both `CrosswordPlayer.tsx` (button labeled "Toggle (SPACE)", in the ACROSS `dire
 Scope: `CrosswordPlayer.tsx`, `PuzzleDesigner.tsx` only.
 
 ---
----
 
-## T018 — [MERGE PENDING, do not re-implement] Solver flow: name capture, live timer, leaderboard submission and results screen
+## T019 — [READY FOR REVIEW] Three small fixes from testing T018: timer start, gate form width, publish-success modal
 
-**Already implemented and reviewed on branch `t018-solver-leaderboard` — this text is just showing as pending on `main` because that branch (and `t019-t018-fixes`, built on top of it) haven't been merged yet. Do not start this from scratch. If you're reading this as your next task, stop and tell the user to merge the pending PRs first.**
+Three independent fixes, bundled since they're all small — treat them as separate concerns, don't let fixing one bleed into another.
 
-**No new SQL needed for this one** — the `attempts` table and its RLS policies (public read, public insert) were already set up in the original schema and haven't changed. This is entirely app-code work: `src/lib/storage.ts`, `App.tsx`'s `PlayPage`, and `CrosswordPlayer.tsx`.
+**1. Timer should start the moment the puzzle becomes visible, not on first keystroke.** In `CrosswordPlayer.tsx`, `startAtMs` currently only gets set inside `onCellInputChange` (`if (startAtMs == null) setStartAtMs(Date.now());`, ~line 288) — meaning a solver can read every clue for as long as they want before the clock starts, which isn't the intended timed-puzzle behavior (NYT-style timers start when you open the puzzle, not when you type your first letter). Fix:
+   - Initialize `startAtMs` to `Date.now()` immediately (e.g. `useState(() => Date.now())`) instead of `null`.
+   - In the existing "reset when puzzle changes" effect (`useEffect(..., [puzzle.id])`), also reset it to `Date.now()` instead of `null` — a new puzzle instance should start its own clock immediately too.
+   - Remove the now-unnecessary `if (startAtMs == null) setStartAtMs(Date.now())` line inside `onCellInputChange`.
+   - Since `startAtMs` is now always set once the component is mounted, the timer-ticking effect's `startAtMs == null` check can simplify accordingly (up to you whether you keep `startAtMs` typed as nullable for safety or simplify the type — either is fine, just make sure the behavior is "clock starts on mount/name-gate-dismissal, not on first letter").
 
-**Context on what already exists, so this isn't re-derived from scratch:** `/p/:slug` (in `App.tsx`) already publicly loads a *published* puzzle via `getPuzzleBySlug` — that's the "shareable link" mechanism, already done, don't touch it. `CrosswordPlayer.tsx` already tracks `startAtMs` (set on the first letter typed) and computes `elapsedMs` once solving completes — that trigger-on-first-keystroke behavior is correct and should stay. What's missing: a live-updating visible clock while solving (currently elapsed time is only computed once, at the end), a name-capture step before solving starts, and actually submitting the result anywhere — right now a completed puzzle just shows "Solved! Time: Xs" and nothing happens with that data.
+**2. Solver name-gate form: button width doesn't match the input width.** In `.solverGateForm` (`styles.css`), the input has `width: 100%` but the "Start" submit button doesn't, so it renders much narrower than the input above it — inconsistent, looks unfinished. Give the button `width: 100%` too (e.g. `.solverGateForm button { width: 100%; }` or similar scoped selector) so both elements span the same width.
 
-**1. Solver name capture, before the grid becomes interactive:**
-- On visiting `/p/:slug`, if there's no solver name remembered yet (check `localStorage`, e.g. key `dct-crosswords:solverName`), show a lightweight name-entry step in place of the grid — puzzle title visible, a text input, a "Start" button. Once a name is given, store it in `localStorage` (so returning solvers on this browser aren't asked again) and reveal the actual puzzle.
-- If a name is already remembered, skip straight to the puzzle — but give some small, easy way to change it (e.g. a "Not you? Change name" link) rather than locking it in forever.
+**3. Publish success: show a congratulations modal with a copyable share link**, instead of silently dropping the creator back on the puzzles list. This should trigger specifically when the **Publish** button is used (not "Save draft," not "Save changes" on an already-published puzzle) — since "Publish" only ever appears for a not-yet-published puzzle, clicking it is always a genuine "this is now live" moment.
+   - `PuzzleDesigner`'s `onSaved` callback needs to communicate *which* action was taken. Change its signature to include that (e.g. `onSaved: (puzzle: Puzzle15, action: 'draft' | 'published') => void | Promise<void>`), passed from the existing `handleSave(status)` / `handleSaveDraftAndLeave` call sites.
+   - In `App.tsx`'s `handleSaved`, **capture the return value of `savePuzzle(puzzle)`** (it already returns the saved row, including the real server-assigned `slug` — currently the return value is discarded, which is why this wasn't possible before) and use *that* for the link, not the input puzzle (a brand-new puzzle won't have a real slug until after the insert).
+   - When the action was `'published'`, show a modal (same existing modal CSS conventions) — congratulatory tone, puzzle title, the **full absolute shareable URL** (`${window.location.origin}/p/${slug}` — not just the relative path, it needs to be pasteable into a text message), a "Copy link" button using the Clipboard API with some brief visual confirmation it copied (e.g. button text changes to "Copied!" for a moment), and a way to close/continue back to the puzzles list.
 
-**2. Live ticking timer during solving**, in `CrosswordPlayer.tsx`: once `startAtMs` is set, update a visible `MM:SS`-style display every second (a `setInterval`, cleared when solved or on unmount) — this is the actual "NYT style" part, a running clock the solver can see the whole time, not just a number revealed at the end.
-
-**3. On solving, submit the result.** Add a `submitAttempt({ puzzleId, solverName, elapsedMs })` function to `storage.ts` — inserts into `attempts` (`puzzle_id`, `solver_name`, `elapsed_ms`). Call it once, right when a puzzle is solved (guard against double-submission if `finishIfSolved`-style logic could otherwise fire more than once).
-
-**4. Results screen after solving**, showing: the solver's own time, and the puzzle's leaderboard — add a `getLeaderboard(puzzleId)` function to `storage.ts` (query `attempts` where `puzzle_id` matches, ordered by `elapsed_ms` ascending, reasonable limit e.g. top 10). Show the top times, and make sure the solver can tell where *their* result landed even if it's outside the visible top N (e.g. a "you: Xs" line, or highlight their row if it's within the shown list). Exact visual treatment is your call — keep it simple and reuse existing panel/list styling patterns rather than inventing a new visual language.
-
-**5. Mobile is explicitly out of scope for this task** — a dedicated mobile-optimization pass on this whole view is coming right after, once this exists to actually test on a phone. Don't skip basic usability, but don't over-invest in responsive polish here either.
-
-**Verify**: solve a published puzzle as a fresh (no remembered name) visitor — confirm the name gate appears, the clock visibly ticks while solving, completing it submits an attempt, and the results screen shows your time plus the leaderboard. Solve the *same* puzzle again as a "different" solver (clear the `localStorage` key or use a private/incognito window) and confirm both attempts show up correctly ordered on that puzzle's leaderboard.
-
-Scope: `src/lib/storage.ts`, `src/App.tsx` (`PlayPage`), `src/crossword/CrosswordPlayer.tsx`, `styles.css` as needed for the new name-gate/results views.
+Scope: `CrosswordPlayer.tsx`, `PuzzleDesigner.tsx`, `App.tsx`, `styles.css`, one new modal component for item 3.
 

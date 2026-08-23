@@ -8,10 +8,11 @@ import {
   useNavigate,
   useParams,
 } from 'react-router-dom';
-import { CrosswordPlayer } from '@/crossword/CrosswordPlayer';
+import { CrosswordPlayer, SOLVER_NAME_KEY } from '@/crossword/CrosswordPlayer';
 import { PuzzleDesigner } from '@/crossword/PuzzleDesigner';
 import { StartingGridModal } from '@/components/StartingGridModal';
 import { DeletePuzzleConfirmModal } from '@/components/DeletePuzzleConfirmModal';
+import { PublishSuccessModal } from '@/components/PublishSuccessModal';
 import {
   AuthProvider,
   CreatorLogin,
@@ -43,6 +44,10 @@ function AppShell() {
   const [listError, setListError] = useState<string | null>(null);
   const [startingTemplate, setStartingTemplate] = useState<Template15 | undefined>(undefined);
   const [gridModalOpen, setGridModalOpen] = useState(false);
+  const [publishSuccess, setPublishSuccess] = useState<{
+    title: string;
+    shareUrl: string;
+  } | null>(null);
 
   const refresh = useCallback(async () => {
     setListError(null);
@@ -93,15 +98,21 @@ function AppShell() {
     });
   }, [navigate]);
 
-  const handleSaved = async (puzzle: Puzzle15) => {
+  const handleSaved = async (puzzle: Puzzle15, action: 'draft' | 'published') => {
     try {
-      await savePuzzle(puzzle);
+      const saved = await savePuzzle(puzzle);
       await refresh();
       // Leave design before clearing template — otherwise DesignNewPage's
       // "no template" effect would reopen the starting-grid modal.
       navigate('/');
       setStartingTemplate(undefined);
       setGridModalOpen(false);
+      if (action === 'published' && saved.slug) {
+        setPublishSuccess({
+          title: saved.title,
+          shareUrl: `${window.location.origin}/p/${saved.slug}`,
+        });
+      }
     } catch (err) {
       alert(`Could not save puzzle: ${errorMessage(err)}`);
       throw err;
@@ -212,6 +223,13 @@ function AppShell() {
           setGridModalOpen(false);
           navigate('/design');
         }}
+      />
+
+      <PublishSuccessModal
+        open={publishSuccess != null}
+        puzzleTitle={publishSuccess?.title ?? ''}
+        shareUrl={publishSuccess?.shareUrl ?? ''}
+        onClose={() => setPublishSuccess(null)}
       />
     </div>
   );
@@ -352,7 +370,7 @@ function DesignNewPage({
   setGridModalOpen: (open: boolean) => void;
   setStartingTemplate: (t: Template15 | undefined) => void;
   onCancel: () => void;
-  onSaved: (puzzle: Puzzle15) => void | Promise<void>;
+  onSaved: (puzzle: Puzzle15, action: 'draft' | 'published') => void | Promise<void>;
 }) {
   // Open the template picker once when entering new-design without a template.
   // Do NOT depend on startingTemplate/gridModalOpen — clearing the template on
@@ -390,7 +408,7 @@ function DesignEditPage({
   puzzles: Puzzle15[];
   listLoading: boolean;
   onCancel: () => void;
-  onSaved: (puzzle: Puzzle15) => void | Promise<void>;
+  onSaved: (puzzle: Puzzle15, action: 'draft' | 'published') => void | Promise<void>;
 }) {
   const { id } = useParams<{ id: string }>();
   const fromList = useMemo(() => puzzles.find((p) => p.id === id), [puzzles, id]);
@@ -458,6 +476,15 @@ function PlayPage() {
   const [playing, setPlaying] = useState<Puzzle15 | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [solverName, setSolverName] = useState<string | null>(() => {
+    const stored = localStorage.getItem(SOLVER_NAME_KEY);
+    return stored?.trim() ? stored.trim() : null;
+  });
+  const [showNameGate, setShowNameGate] = useState(() => {
+    const stored = localStorage.getItem(SOLVER_NAME_KEY);
+    return !stored?.trim();
+  });
+  const [nameDraft, setNameDraft] = useState('');
 
   useEffect(() => {
     if (!slug) {
@@ -482,6 +509,20 @@ function PlayPage() {
     };
   }, [slug]);
 
+  const beginWithName = () => {
+    const trimmed = nameDraft.trim();
+    if (!trimmed) return;
+    localStorage.setItem(SOLVER_NAME_KEY, trimmed);
+    setSolverName(trimmed);
+    setShowNameGate(false);
+    setNameDraft('');
+  };
+
+  const openChangeName = () => {
+    setNameDraft(solverName ?? '');
+    setShowNameGate(true);
+  };
+
   if (loading) {
     return (
       <div className="panel">
@@ -492,8 +533,47 @@ function PlayPage() {
     );
   }
 
-  if (playing) {
-    return <CrosswordPlayer puzzle={playing} />;
+  if (playing && showNameGate) {
+    return (
+      <div className="panel solverGate">
+        <div className="emptyState">
+          <div className="title" style={{ fontSize: 20, marginBottom: 8 }}>
+            {playing.title}
+          </div>
+          <p className="subtle" style={{ marginBottom: 16 }}>
+            Enter your name to start the timer and join the leaderboard.
+          </p>
+          <form
+            className="solverGateForm"
+            onSubmit={(e) => {
+              e.preventDefault();
+              beginWithName();
+            }}
+          >
+            <label className="loginField">
+              <span className="fieldLabel">Your name</span>
+              <input
+                type="text"
+                value={nameDraft}
+                onChange={(e) => setNameDraft(e.target.value)}
+                autoFocus
+                maxLength={64}
+                placeholder="e.g. Alex"
+              />
+            </label>
+            <button type="submit" className="btn btnPrimary" disabled={!nameDraft.trim()}>
+              Start
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  if (playing && solverName) {
+    return (
+      <CrosswordPlayer puzzle={playing} solverName={solverName} onChangeName={openChangeName} />
+    );
   }
 
   return (
