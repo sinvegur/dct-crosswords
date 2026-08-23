@@ -92,28 +92,32 @@ Scope: still just `CrosswordPlayer.tsx`.
 
 ---
 
-## T027 — [READY FOR REVIEW] Name-gate screen: fix double label spacing and input/button width mismatch
+## T028 — [TODO] Fix letter/number overlap in solver-mode grid cells — the letter's font-size "scaling" never actually engages on desktop
 
-Two small CSS bugs on the solver name-gate screen (`App.tsx`'s `PlayPage`, the "Enter your name" form before solving starts), both root-caused and verified live with real measurements — apply the exact fixes below, no design judgment needed here.
+User-reported: letters overlapping the corner numbers in some cells in solver mode. Root-caused live with zoomed screenshots and direct measurement — this is a real regression in effect (not new code, but a long-standing miscalibration that T022's 3-column layout exposed by making cells smaller than before).
 
-**1. The gap between "YOUR NAME" and the input box is double what's intended.** The label (`<span className="fieldLabel">`) sits inside `<label className="loginField">` alongside the `<input>`. `.loginField` is `display:flex; flex-direction:column; gap:6px`, which already spaces its two children — but `.fieldLabel` *also* has its own `margin-bottom: 6px` (needed elsewhere, e.g. `PuzzleDesigner.tsx`'s `.fieldBlock` usage, which isn't flex-based and relies on that margin). Margin and flex `gap` both apply and stack, so the real on-screen gap is 12px, not 6px. Measured directly: `gapLabelToInput` computed as exactly 12px before, 6px after the fix below.
-   - **Fix**: add a scoped override so `.fieldLabel`'s margin is zeroed out specifically inside `.loginField` (leaving the base `.fieldLabel` rule, and its `.fieldBlock` usage elsewhere, untouched):
-     ```css
-     .loginField .fieldLabel {
-       margin-bottom: 0;
-     }
-     ```
+**Root cause:** `.cell input`'s font-size is `clamp(14px, 5.3cqi, 24px)`. Measured the actual computed font-size across the entire realistic desktop solver-grid range (grid width 556px–804px, i.e. roughly 35px–52px cells): it was **exactly 24px at every single size tested** — the `5.3cqi` term already exceeds the 24px ceiling even at the smallest cell size, so the clamp's upper bound is doing 100% of the work and the "scaling" term never actually engages in practice. The letter stays visually full-size as cells shrink, while `.cellNumber` (its own clamp) is already at *its* floor (6px font, 1-2px inset) with no more room to give. At the smallest end (35×35px cells, e.g. a ~1100px-wide browser window), this crowds the number badge enough that top-heavy Turkish diacritics collide with it — confirmed via 4x-zoomed screenshots: **Ğ's breve mark directly overlapped the "0" in a "10" badge**; Ö and Ü were touching/borderline at the same size; İ and Ş had enough clearance to be fine (their marks are narrower/positioned differently).
 
-**2. The input box is measurably wider than the "Start" button below it (and everything above it), breaking the visual symmetry.** Root cause: `.loginField input` has no `box-sizing` set, so it uses the browser's default `content-box` for `<input>` elements — meaning its `padding: 8px 10px` and `border: 1px` get added *on top of* its `width: 100%`, making it wider than its container. `<button>` elements default to `border-box` in most browsers, so `.btn`'s `width: 100%` (from `.solverGateForm button`) renders at the container's actual width with no such inflation. Measured directly at one viewport: input rendered at 342px wide vs. the button's 320px — a 22px gap, which is exactly `padding (2×10px) + border (2×1px)`. This isn't limited to the name-gate screen either — `.loginField input` is shared with the Creator sign-in form (email/password), which has the identical latent bug (confirmed live: both its inputs also rendered wider than its "Sign in" button before the fix, all three matched exactly after).
-   - **Fix**: add the missing `box-sizing` to the shared rule:
-     ```css
-     .loginField input {
-       box-sizing: border-box;
-       /* existing declarations unchanged */
-     }
-     ```
+**Fix — verified live, resolves the overlap without affecting anything already working:**
+```css
+.cell input {
+  /* ... */
+  font-size: clamp(14px, 3.6cqi, 24px);
+  /* ... unchanged otherwise */
+}
+```
+Only the middle (preferred-value) term changes, from `5.3cqi` to `3.6cqi` — `14px` floor and `24px` ceiling stay exactly as they are. This makes the font genuinely scale across the realistic range instead of flatlining: measured before/after at four viewports —
 
-**Verify:** on the name-gate screen, "YOUR NAME" sits closer to the input (visibly tighter, not the current noticeable gap); the input box's left *and* right edges line up exactly with the "Start" button's edges below it (no overhang on either side); repeat the same edge-alignment check on the Creator sign-in form (email input, password input, and "Sign in" button should all now match widths exactly, where before the two inputs were wider than the button).
+| grid width (≈cell size) | font before | font after |
+|---|---|---|
+| 556px (≈35px cells) | 24px | 20.0px |
+| 653px (≈42px cells) | 24px | 23.5px |
+| 739px (≈47px cells) | 24px | 24px |
+| 804px (≈52px cells) | 24px | 24px |
 
-Scope: `styles.css` only — no JSX/component changes needed for either fix.
+So larger cells (739px+ grid width, roughly 47px+ cells — the range most desktop viewports actually land in) are **completely unaffected**, still rendering at the full 24px that's already confirmed to look right there. Only the smaller end of the range (down to ~35px cells, hit on narrower browser windows) picks up genuine headroom. Re-verified all five Turkish top-diacritic letters (Ğ, İ, Ö, Ş, Ü) in a two-digit-numbered cell at the smallest size after the change — no overlap in any case (Ğ went from directly touching to a clear visible gap). Also re-checked a full ungapped grid screenshot at both size extremes to confirm nothing looks awkwardly small or inconsistent.
+
+**Verify:** at a narrow-ish browser window (roughly 1000–1150px wide) so the grid renders in the ~35px-cell range, type Ğ, Ö, Ş, Ü, İ into a few different two-digit-numbered cells and zoom in — confirm no visible touching/overlap between the letter's diacritic ink and the number badge in any case. At a wide window (1700px+), confirm letters still look the same size as before (should be unchanged, still hitting the 24px ceiling).
+
+Scope: `styles.css` only — one clamp value, no JSX changes.
 
