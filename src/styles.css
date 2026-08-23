@@ -580,6 +580,13 @@ textarea {
   font-variant-numeric: tabular-nums;
 }
 
+.leaderboardDate {
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .leaderboardYouOutside {
   padding: 10px 14px 14px;
   border-top: 1px solid var(--border);

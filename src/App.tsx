@@ -12,6 +12,7 @@ import { CrosswordPlayer, SOLVER_NAME_KEY } from '@/crossword/CrosswordPlayer';
 import { PuzzleDesigner } from '@/crossword/PuzzleDesigner';
 import { StartingGridModal } from '@/components/StartingGridModal';
 import { DeletePuzzleConfirmModal } from '@/components/DeletePuzzleConfirmModal';
+import { PuzzleLeaderboardModal } from '@/components/PuzzleLeaderboardModal';
 import { PublishSuccessModal } from '@/components/PublishSuccessModal';
 import {
   AuthProvider,
@@ -260,6 +261,7 @@ function HomePage({
   const navigate = useNavigate();
   const [actionError, setActionError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Puzzle15 | null>(null);
+  const [leaderboardTarget, setLeaderboardTarget] = useState<Puzzle15 | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   const confirmDelete = async () => {
@@ -325,6 +327,13 @@ function HomePage({
                 </div>
               </div>
               <div className="puzzleActions">
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => setLeaderboardTarget(p)}
+                >
+                  Leaderboard
+                </button>
                 {p.status === 'published' ? (
                   <button
                     type="button"
@@ -354,6 +363,12 @@ function HomePage({
           ))}
         </ul>
       )}
+
+      <PuzzleLeaderboardModal
+        open={leaderboardTarget != null}
+        puzzle={leaderboardTarget}
+        onClose={() => setLeaderboardTarget(null)}
+      />
 
       <DeletePuzzleConfirmModal
         open={deleteTarget != null}
