@@ -154,17 +154,24 @@ Scope: `App.tsx`, `styles.css`.
 
 Verified live: the blue clue bar (`.clueBarText`, `styles.css`) has no reserved height, so it's exactly as tall as its current clue's text needs — one line for a short clue, two (or more) for a long one. Since the grid sits directly below the bar, switching from a short clue to a long one grows the bar and visibly pushes the grid down (and back up again switching back). Measured directly: 39px bar / grid top at 123px for a short clue vs. 58px bar / grid top at 142px for a long one that wraps to two lines — a 19px jump every time.
 
-**Fix — verified live, one CSS property:**
+**Fix — verified live, includes a follow-up refinement (see below) so read the whole thing before implementing, not just the first version.** First pass: reserving height via `min-height` on `.clueBarText` alone fixed the grid-shift problem, but left short one-line clues sitting at the *top* of the now-taller bar with dead space underneath — visually odd. Second, corrected pass moves the reserved height and centering to the row level so short clues sit vertically centered instead:
+
 ```css
-.clueBarText {
-  /* existing declarations unchanged */
-  min-height: calc(1.35em * 2);
+.clueBarBody {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: calc(14px * 1.35 * 2);
 }
 ```
-`1.35` matches `.clueBarText`'s own existing `line-height`, so this reserves exactly two lines' worth of height regardless of font-size, using `em` rather than a hardcoded px value so it stays correct if the font-size ever changes later. A one-line clue now sits in a bar with empty space below it (matching the two-line bar's height); a two-line clue fills that same reserved space exactly; the grid's position no longer moves between them.
+(`.clueBarText` itself is untouched — no `min-height` added there; `.clueBarLabel` is also untouched.) `align-items` changes from `flex-start` to `center`, and the reserved-height calc (`14px * 1.35 * 2`) matches `.clueBarText`'s own `font-size`/`line-height` explicitly — deliberately spelled out in px rather than a bare `em` on `.clueBarBody`, since `.clueBarBody` doesn't itself have `font-size: 14px` set, so a bare `em` there would've resolved against the wrong (inherited) font-size.
 
-**Deliberately not capped at two lines — `min-height`, not `height` or `max-height`.** Verified a genuinely very long clue (long enough to wrap to 3-4 lines) still displays in full, growing the bar further rather than clipping — two lines is the *reserved minimum* for the common case, not a hard ceiling. In that rare case the grid will still shift a little, which is fine — this fix is about eliminating the shift for the everyday short-clue-vs-long-clue case, not guaranteeing zero movement in every conceivable case.
+**Verified all three real cases live:**
+- **One-line clue**: now vertically centered in the reserved 2-line space, no more dead space hugging the bottom — this was the specific thing being fixed here.
+- **Two-line clue**: text exactly fills the reserved height (no visible change from before — a 2-line block being "centered" in an exactly-2-line space is a no-op), and the number/direction label reads naturally next to it.
+- **Three-plus-line clue** (rare, exceptionally long clue text): bar grows past the 2-line minimum to fit it in full, no clipping — `min-height` is a floor, not a ceiling, so this still works exactly as intended. The label ends up vertically centered against the whole multi-line block rather than pinned to the first line specifically — a reasonable, common crossword-UI look, not a bug; getting the label to track the *first line specifically* for arbitrary line counts would need JS-based line measurement, out of scope for what's a rare edge case here.
 
-**Verify:** click through several clues of differing lengths (some one line, some two) and confirm the grid's vertical position stays completely fixed. Find or write a clue long enough to wrap to three-plus lines and confirm it still displays in full, uncut, even though the grid does shift slightly for that case. Confirm a one-line clue now has visible empty space below it in the bar rather than the bar hugging the text tightly.
+**Verify:** click through several clues of differing lengths (one line, two lines) and confirm the grid's vertical position stays completely fixed, *and* that a one-line clue now visually centers within the bar rather than sitting at the top with empty space below. Find or write a clue long enough to wrap to three-plus lines and confirm it still displays in full, uncut, even though the grid does shift slightly for that rare case.
 
 Scope: `styles.css` only.
