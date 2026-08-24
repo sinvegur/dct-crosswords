@@ -30,3 +30,13 @@ Both `CrosswordPlayer.tsx` (button labeled "Toggle (SPACE)", in the ACROSS `dire
 
 Scope: `CrosswordPlayer.tsx`, `PuzzleDesigner.tsx` only.
 
+---
+
+## Mobile solver layout — reverted, redo fresh later
+
+T040/T041/T042 (NYT-style single-column mobile layout, clue-bar prev/next arrows + tap-to-toggle, custom on-screen keyboard) were implemented, merged, then fully reverted on 2026-08-24 at the user's request. The on-screen keyboard in particular was a real problem: a 2-row compact layout with Turkish letters behind a toggle key broke the standard QWERTY layout people expect and was unusable. Mobile is back to its original (also imperfect, unoptimized) desktop-only layout — this is the known pre-existing state, not a new regression.
+
+**Before restarting this, rethink the on-screen-keyboard approach specifically** — don't reuse the 2-row/Turkish-toggle design. Whatever comes next should keep a standard, familiar full QWERTY row layout front and center; solving the vertical-space budget problem (a 15×15 grid + header + clue bar + full keyboard doesn't fit comfortably on a phone screen) needs a different idea, not compressing/reordering the keyboard itself.
+
+No `[TODO]` yet — needs a fresh design discussion with the user before queuing real implementation work.
+

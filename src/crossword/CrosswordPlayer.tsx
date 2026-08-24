@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Puzzle } from './types';
 import { type Direction, type Entry, computeEntries } from './engine';
 import {
@@ -8,7 +7,6 @@ import {
   submitAttempt,
   type LeaderboardEntry,
 } from '@/lib/storage';
-import { useIsMobile } from '@/lib/useIsMobile';
 
 const SOLVER_NAME_KEY = 'dct-crosswords:solverName';
 
@@ -44,13 +42,6 @@ export function formatElapsedMs(ms: number): string {
 
 export { SOLVER_NAME_KEY };
 
-const LATIN_KEYBOARD_ROWS = [
-  ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', 'A', 'S', 'D'],
-  ['F', 'G', 'H', 'J', 'K', 'L', 'Z', 'X', 'C', 'V', 'B', 'N', 'M'],
-] as const;
-
-const TURKISH_EXTRA_LETTERS = ['Ç', 'Ğ', 'İ', 'Ö', 'Ş', 'Ü'] as const;
-
 function progressKey(puzzleId: string) {
   return `dct-crosswords:progress:${puzzleId}`;
 }
@@ -84,7 +75,6 @@ type Props = {
 };
 
 export function CrosswordPlayer({ puzzle, solverName }: Props) {
-  const isMobile = useIsMobile();
   const size = puzzle.size;
   const cellCount = size * size;
   const computed = useMemo(() => computeEntries(puzzle.solutionGrid), [puzzle.id]);
@@ -139,21 +129,13 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
   const [resultsLoading, setResultsLoading] = useState(false);
 
   const [bestTimeMs, setBestTimeMs] = useState<number | null>(null);
-  const [showTurkishKeys, setShowTurkishKeys] = useState(false);
 
   useEffect(() => {
     const saved = loadProgress(puzzle.id, cellCount);
     setFilled(saved?.filled ?? Array.from({ length: cellCount }, () => ''));
-    const firstAcross = computed.entriesAcross[0];
-    if (firstAcross) {
-      setActiveDirection('across');
-      setActiveEntryNumber(firstAcross.number);
-      setActiveCellIndex(idxOf(size, firstAcross.start.row, firstAcross.start.col));
-    } else {
-      setActiveDirection('across');
-      setActiveEntryNumber(null);
-      setActiveCellIndex(null);
-    }
+    setActiveCellIndex(null);
+    setActiveDirection('across');
+    setActiveEntryNumber(null);
     setStartAtMs(saved?.startAtMs ?? Date.now());
     setSolved(false);
     setElapsedMs(null);
@@ -163,7 +145,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     setAttemptId(null);
     setSubmitError(null);
     submittedRef.current = false;
-  }, [puzzle.id, cellCount, computed, size]);
+  }, [puzzle.id, cellCount]);
 
   useEffect(() => {
     if (solved) return;
@@ -480,29 +462,6 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     else moveInResolvedEntry(entry, cellIndex, 1);
   };
 
-  const handleKeyboardBackspace = () => {
-    if (activeCellIndex == null || solved) return;
-    if (filled[activeCellIndex]) {
-      onCellInputChange(activeCellIndex, '');
-    } else {
-      backspaceEmptyCell(activeCellIndex);
-    }
-  };
-
-  const handleKeyboardLetter = (letter: string) => {
-    if (activeCellIndex == null || solved) return;
-    onCellInputChange(activeCellIndex, letter);
-  };
-
-  const handleKeyboardTurkishLetter = (letter: string) => {
-    handleKeyboardLetter(letter);
-    setShowTurkishKeys(false);
-  };
-
-  const preventKeyboardFocusSteal = (e: { preventDefault: () => void }) => {
-    e.preventDefault();
-  };
-
   const userOnLeaderboard = attemptId != null && leaderboard.some((e) => e.id === attemptId);
   const showRankOutsideTop =
     userRank != null && leaderboard.length > 0 && !userOnLeaderboard;
@@ -657,22 +616,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
         ) : (
           <div className="gridWrap">
             <div className="clueBar">
-              <button
-                type="button"
-                className="clueBarNav"
-                onClick={() => stepEntry(-1)}
-                disabled={!activeEntry || solved}
-                aria-label="Previous clue"
-              >
-                <ChevronLeft size={20} aria-hidden />
-              </button>
-              <div
-                className="clueBarBody"
-                onClick={() => {
-                  if (solved) return;
-                  toggleDirectionForActiveCell();
-                }}
-              >
+              <div className="clueBarBody">
                 {activeEntry ? (
                   <>
                     <span className="clueBarLabel">
@@ -685,17 +629,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
                   <span className="clueBarText clueBarPlaceholder">Select a clue to begin</span>
                 )}
               </div>
-              <button
-                type="button"
-                className="clueBarNav"
-                onClick={() => stepEntry(1)}
-                disabled={!activeEntry || solved}
-                aria-label="Next clue"
-              >
-                <ChevronRight size={20} aria-hidden />
-              </button>
             </div>
-            <div className="gridSlot">
             <div
               className="grid"
               tabIndex={0}
@@ -735,7 +669,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
                       }}
                       value={value}
                       maxLength={1}
-                      inputMode={isMobile ? 'none' : undefined}
+                      inputMode="text"
                       autoCorrect="off"
                       spellCheck={false}
                       onFocus={() => {
@@ -775,77 +709,6 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
                 );
               })}
             </div>
-            </div>
-            {isMobile ? (
-              <div className="solverKeyboard" role="group" aria-label="On-screen keyboard">
-                {showTurkishKeys ? (
-                  <div className="solverKeyboardRow">
-                    {TURKISH_EXTRA_LETTERS.map((letter) => (
-                      <button
-                        key={letter}
-                        type="button"
-                        className="solverKey"
-                        onMouseDown={preventKeyboardFocusSteal}
-                        onClick={() => handleKeyboardTurkishLetter(letter)}
-                      >
-                        {letter}
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      className="solverKey solverKeyWide"
-                      aria-label="Back to letters"
-                      onMouseDown={preventKeyboardFocusSteal}
-                      onClick={() => setShowTurkishKeys(false)}
-                    >
-                      ABC
-                    </button>
-                  </div>
-                ) : null}
-                {LATIN_KEYBOARD_ROWS.map((row, rowIndex) => {
-                  if (showTurkishKeys && rowIndex === 0) return null;
-                  return (
-                  <div key={rowIndex} className="solverKeyboardRow">
-                    {row.map((letter) => (
-                      <button
-                        key={letter}
-                        type="button"
-                        className="solverKey"
-                        onMouseDown={preventKeyboardFocusSteal}
-                        onClick={() => handleKeyboardLetter(letter)}
-                      >
-                        {letter}
-                      </button>
-                    ))}
-                    {rowIndex === LATIN_KEYBOARD_ROWS.length - 1 ? (
-                      <>
-                        {!showTurkishKeys ? (
-                          <button
-                            type="button"
-                            className="solverKey solverKeyWide"
-                            aria-label="Turkish letters"
-                            onMouseDown={preventKeyboardFocusSteal}
-                            onClick={() => setShowTurkishKeys(true)}
-                          >
-                            TR
-                          </button>
-                        ) : null}
-                        <button
-                          type="button"
-                          className="solverKey solverKeyWide"
-                          aria-label="Backspace"
-                          onMouseDown={preventKeyboardFocusSteal}
-                          onClick={handleKeyboardBackspace}
-                        >
-                          ⌫
-                        </button>
-                      </>
-                    ) : null}
-                  </div>
-                  );
-                })}
-              </div>
-            ) : null}
           </div>
         )}
       </div>
