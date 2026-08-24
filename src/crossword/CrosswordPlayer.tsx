@@ -83,6 +83,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
   const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
   const clueRowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const clickStartedOnActiveCellRef = useRef(false);
+  const skipNextFocusPickRef = useRef(false);
 
   const [activeDirection, setActiveDirection] = useState<Direction>('across');
   const [activeEntryNumber, setActiveEntryNumber] = useState<number | null>(null);
@@ -184,6 +185,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     if (cellIndex == null) return;
     const el = inputsRef.current[cellIndex];
     if (!el) return;
+    skipNextFocusPickRef.current = true;
     el.focus();
     el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   };
@@ -297,11 +299,12 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
   const focusEntry = (direction: Direction, entryNumber: number) => {
     const entry = computed.entryByNumberDirection(direction, entryNumber);
     if (!entry || solved) return;
-    const firstCell = idxOf(size, entry.start.row, entry.start.col);
+    const entryIndices = entry.cells.map((c) => idxOf(size, c.row, c.col));
+    const targetCell = entryIndices.find((idx) => !filled[idx]) ?? entryIndices[0]!;
     setActiveDirection(direction);
     setActiveEntryNumber(entryNumber);
-    setActiveCellIndex(firstCell);
-    focusCell(firstCell);
+    setActiveCellIndex(targetCell);
+    focusCell(targetCell);
   };
 
   const isEntryFilled = (entry: Entry) =>
@@ -625,7 +628,13 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
                       inputMode="text"
                       autoCorrect="off"
                       spellCheck={false}
-                      onFocus={() => handlePickCell(cellIndex)}
+                      onFocus={() => {
+                        if (skipNextFocusPickRef.current) {
+                          skipNextFocusPickRef.current = false;
+                          return;
+                        }
+                        handlePickCell(cellIndex);
+                      }}
                       onChange={(e) => onCellInputChange(cellIndex, e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === 'Tab') {
