@@ -136,7 +136,7 @@ Scope: `App.tsx`, `styles.css`.
 
 ---
 
-## T036 — [TODO] Make the puzzle title in the list clickable — opens edit mode
+## T036 — [READY FOR REVIEW] Make the puzzle title in the list clickable — opens edit mode
 
 `App.tsx`'s `HomePage`, `.puzzleTitleRow` — the title (`<div className="puzzleTitle">{p.title}</div>`) is currently plain, non-interactive text sitting right next to a fully-functional Edit icon button in the same row. Make the title itself clickable too, doing the exact same thing as that Edit button: `navigate(`/design/${p.id}`)`.
 
