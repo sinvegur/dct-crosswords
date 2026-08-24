@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { PencilLine, Play, Trash2, Trophy } from 'lucide-react';
 import {
   BrowserRouter,
   Navigate,
@@ -12,6 +13,7 @@ import { CrosswordPlayer, SOLVER_NAME_KEY } from '@/crossword/CrosswordPlayer';
 import { PuzzleDesigner } from '@/crossword/PuzzleDesigner';
 import { StartingGridModal } from '@/components/StartingGridModal';
 import { DeletePuzzleConfirmModal } from '@/components/DeletePuzzleConfirmModal';
+import { PuzzleLeaderboardModal } from '@/components/PuzzleLeaderboardModal';
 import { PublishSuccessModal } from '@/components/PublishSuccessModal';
 import {
   AuthProvider,
@@ -29,6 +31,8 @@ import {
   savePuzzle,
 } from '@/lib/storage';
 import { runGuarded } from '@/lib/navigationGuard';
+
+const ROW_ACTION_ICON_SIZE = 16;
 
 function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
@@ -260,6 +264,7 @@ function HomePage({
   const navigate = useNavigate();
   const [actionError, setActionError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Puzzle15 | null>(null);
+  const [leaderboardTarget, setLeaderboardTarget] = useState<Puzzle15 | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   const confirmDelete = async () => {
@@ -325,35 +330,63 @@ function HomePage({
                 </div>
               </div>
               <div className="puzzleActions">
-                {p.status === 'published' ? (
-                  <button
-                    type="button"
-                    className="btn btnPrimary"
-                    onClick={() => navigate(`/p/${p.slug}`)}
-                    disabled={!p.slug}
-                  >
-                    Play
-                  </button>
-                ) : null}
                 <button
                   type="button"
-                  className="btn"
+                  className="toolbarControl"
+                  aria-label="Edit"
+                  title="Edit"
                   onClick={() => navigate(`/design/${p.id}`)}
                 >
-                  Edit
+                  <PencilLine size={ROW_ACTION_ICON_SIZE} aria-hidden />
                 </button>
                 <button
                   type="button"
-                  className="btn"
+                  className="toolbarControl"
+                  aria-label="Delete"
+                  title="Delete"
                   onClick={() => setDeleteTarget(p)}
                 >
-                  Delete
+                  <Trash2 size={ROW_ACTION_ICON_SIZE} aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  className="toolbarControl"
+                  aria-label="Play"
+                  title={
+                    p.status === 'published'
+                      ? 'Play'
+                      : 'Publish this puzzle to enable Play'
+                  }
+                  disabled={p.status !== 'published' || !p.slug}
+                  onClick={() => navigate(`/p/${p.slug}`)}
+                >
+                  <Play size={ROW_ACTION_ICON_SIZE} aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  className="toolbarControl"
+                  aria-label="Leaderboard"
+                  title={
+                    p.status === 'published'
+                      ? 'Leaderboard'
+                      : 'Publish this puzzle to enable Leaderboard'
+                  }
+                  disabled={p.status !== 'published'}
+                  onClick={() => setLeaderboardTarget(p)}
+                >
+                  <Trophy size={ROW_ACTION_ICON_SIZE} aria-hidden />
                 </button>
               </div>
             </li>
           ))}
         </ul>
       )}
+
+      <PuzzleLeaderboardModal
+        open={leaderboardTarget != null}
+        puzzle={leaderboardTarget}
+        onClose={() => setLeaderboardTarget(null)}
+      />
 
       <DeletePuzzleConfirmModal
         open={deleteTarget != null}

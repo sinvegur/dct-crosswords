@@ -580,6 +580,13 @@ textarea {
   font-variant-numeric: tabular-nums;
 }
 
+.leaderboardDate {
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .leaderboardYouOutside {
   padding: 10px 14px 14px;
   border-top: 1px solid var(--border);
@@ -612,7 +619,7 @@ textarea {
 .puzzleActions {
   display: flex;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
 @media (max-width: 860px) {
@@ -657,6 +664,11 @@ textarea {
 .toolbarControl svg {
   flex-shrink: 0;
   display: block;
+}
+
+.toolbarControl:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .toolbarGlyph {
