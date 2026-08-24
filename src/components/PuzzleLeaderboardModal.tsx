@@ -71,17 +71,11 @@ export function PuzzleLeaderboardModal({ open, puzzle, onClose }: Props) {
       >
         <div className="modalHeader">
           <h2 id="puzzle-leaderboard-title" className="modalTitle">
-            Leaderboard
+            {puzzle.title}
           </h2>
           <button type="button" className="modalClose" onClick={onClose} aria-label="Close">
             ×
           </button>
-        </div>
-
-        <div style={{ padding: '12px 18px 0' }}>
-          <p className="subtle" style={{ margin: 0 }}>
-            {puzzle.title}
-          </p>
         </div>
 
         <div style={{ maxHeight: '60vh', overflowY: 'auto' }}>
@@ -98,15 +92,12 @@ export function PuzzleLeaderboardModal({ open, puzzle, onClose }: Props) {
               <p className="subtle">No one has solved this puzzle yet.</p>
             </div>
           ) : (
-            <ol className="leaderboardList">
+            <ol className="leaderboardList puzzleLeaderboardList">
               {entries.map((entry, index) => (
                 <li key={entry.id} className="leaderboardRow">
                   <span className="leaderboardRank">{index + 1}</span>
                   <span className="leaderboardName">{entry.solverName}</span>
                   <span className="leaderboardTime">{formatElapsedMs(entry.elapsedMs)}</span>
-                  <span className="leaderboardDate">
-                    {new Date(entry.completedAtISO).toLocaleString('en-US')}
-                  </span>
                 </li>
               ))}
             </ol>

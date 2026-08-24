@@ -580,11 +580,13 @@ textarea {
   font-variant-numeric: tabular-nums;
 }
 
-.leaderboardDate {
-  color: var(--muted);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+.puzzleLeaderboardList .leaderboardRow {
+  padding: 8px 14px; /* tighter than shared 10px 14px since there's one less column */
+}
+
+.puzzleLeaderboardList .leaderboardTime {
+  font-size: 18px;
+  font-weight: 700;
 }
 
 .leaderboardYouOutside {

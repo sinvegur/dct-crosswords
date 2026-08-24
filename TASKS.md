@@ -116,29 +116,3 @@ const solveInstantly = () => {
 
 Scope: `CrosswordPlayer.tsx` only.
 
----
-
-## T032 — [TODO] Creator leaderboard modal (`PuzzleLeaderboardModal.tsx`): drop the redundant title/subtitle, drop the completed-at column, make rows more compact around the time
-
-Two cosmetic changes to the modal added in T030, from live user feedback on how it actually looks.
-
-**1. Replace the generic "Leaderboard" heading with the puzzle's own title, and drop the now-redundant subtitle line underneath it.** Currently the modal header is a static `<h2 className="modalTitle">Leaderboard</h2>`, followed by a separate `<p className="subtle">{puzzle.title}</p>` block right below it. Since the button that opens this modal is already labeled/iconed "Leaderboard" (T030), restating that word as the modal's own heading is redundant — the puzzle's *name* is the actually-useful piece of context here. Change the `<h2>` to render `{puzzle.title}` directly, and delete the separate subtitle `<p>` entirely. Keep `id="puzzle-leaderboard-title"` and `aria-labelledby` wired the same way — the puzzle title is still a perfectly good accessible name for the dialog.
-
-**2. Stop showing when each attempt was completed, and use the reclaimed space to make the time more prominent — but don't touch the shared leaderboard CSS classes.** Currently each row shows rank, name, time, and a `completedAtISO` date (`.leaderboardDate`) — the user doesn't want that last piece visible here. **Important: keep fetching `completedAtISO` exactly as-is in `storage.ts`/`getLeaderboard()` — this is a display-only change, not a data change.** Just stop rendering the `<span className="leaderboardDate">...</span>` in this component.
-   - `.leaderboardRow`, `.leaderboardRank`, `.leaderboardName`, and `.leaderboardTime` are **shared** with the solver's own "Solved!" results screen in `CrosswordPlayer.tsx` (confirmed — same classes, same shared rules in `styles.css`) — don't restyle those base rules directly, that would also change how the solver's own leaderboard looks, which isn't part of this ask. Instead, add an additional class to this modal's `<ol>` (e.g. `className="leaderboardList puzzleLeaderboardList"`) and scope the new styling under that, e.g.:
-     ```css
-     .puzzleLeaderboardList .leaderboardRow {
-       padding: 8px 14px; /* tighter than the shared 10px 14px, since there's one less column now */
-     }
-     .puzzleLeaderboardList .leaderboardTime {
-       font-size: 18px;
-       font-weight: 700;
-     }
-     ```
-     (exact values are a judgment call, not a hard requirement — the goal is visibly more compact rows with the time reading as the clear focal point, not pixel-perfect matching of these numbers.)
-   - Once `.leaderboardDate` has no remaining JSX usage anywhere (confirmed today it's only ever used in this one modal), remove its now-orphaned CSS rule from `styles.css` too rather than leaving dead styling behind.
-
-**Verify:** modal header shows the puzzle's actual title instead of the word "Leaderboard," with no separate subtitle line underneath. Each row shows rank/name/time only — no date anywhere. Confirm the solver's own "Solved!" results screen (`CrosswordPlayer.tsx`, finish a puzzle via the T029 "Solve it" button to check quickly) still looks exactly as it did before — same row height/spacing, same time styling — proving the shared classes weren't touched.
-
-Scope: `src/components/PuzzleLeaderboardModal.tsx`, `styles.css`.
-
