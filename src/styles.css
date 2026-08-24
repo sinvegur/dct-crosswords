@@ -671,6 +671,16 @@ textarea {
   .layout.layoutSolver > .solverCluePanel {
     display: none;
   }
+
+  .clueBar {
+    order: 2;
+    margin-bottom: 0;
+    margin-top: 8px;
+  }
+
+  .grid {
+    order: 1;
+  }
 }
 
 .editorToolbar {

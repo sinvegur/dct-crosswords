@@ -132,9 +132,16 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
   useEffect(() => {
     const saved = loadProgress(puzzle.id, cellCount);
     setFilled(saved?.filled ?? Array.from({ length: cellCount }, () => ''));
-    setActiveCellIndex(null);
-    setActiveDirection('across');
-    setActiveEntryNumber(null);
+    const firstAcross = computed.entriesAcross[0];
+    if (firstAcross) {
+      setActiveDirection('across');
+      setActiveEntryNumber(firstAcross.number);
+      setActiveCellIndex(idxOf(size, firstAcross.start.row, firstAcross.start.col));
+    } else {
+      setActiveDirection('across');
+      setActiveEntryNumber(null);
+      setActiveCellIndex(null);
+    }
     setStartAtMs(saved?.startAtMs ?? Date.now());
     setSolved(false);
     setElapsedMs(null);
@@ -144,7 +151,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     setAttemptId(null);
     setSubmitError(null);
     submittedRef.current = false;
-  }, [puzzle.id, cellCount]);
+  }, [puzzle.id, cellCount, computed, size]);
 
   useEffect(() => {
     if (solved) return;
