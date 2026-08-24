@@ -155,9 +155,9 @@ textarea {
   width: 32px;
   height: 32px;
   padding: 0;
-  border: 1px solid #93c5fd;
+  border: none;
   border-radius: 8px;
-  background: #eff6ff;
+  background: transparent;
   color: #1e3a8a;
   cursor: pointer;
 }
@@ -167,7 +167,8 @@ textarea {
   cursor: not-allowed;
 }
 
-.clueBarNav:not(:disabled):hover {
+.clueBarNav:not(:disabled):hover,
+.clueBarNav:not(:disabled):active {
   background: #dbeafe;
 }
 
