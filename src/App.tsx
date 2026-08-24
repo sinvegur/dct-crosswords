@@ -353,7 +353,13 @@ function HomePage({
             <li key={p.id} className="puzzleRow">
               <div>
                 <div className="puzzleTitleRow">
-                  <div className="puzzleTitle">{p.title}</div>
+                  <button
+                    type="button"
+                    className="puzzleTitle"
+                    onClick={() => navigate(`/design/${p.id}`)}
+                  >
+                    {p.title}
+                  </button>
                   <span
                     className={`puzzleStatus ${p.status === 'published' ? 'isPublished' : 'isDraft'}`}
                   >

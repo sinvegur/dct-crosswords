@@ -133,3 +133,17 @@ Right now the only place a creator ever sees a puzzle's shareable link is the on
 **Verify:** on a published puzzle, click the new icon — confirm the link lands on the clipboard (paste it somewhere to check), the icon swaps to a checkmark, and it reverts back to the link icon after ~2 seconds. Confirm draft puzzles show no copy affordance at all. Click it on two different published puzzles in the list and confirm each row's icon-swap is independent — copying one row's link doesn't show a checkmark on a different row.
 
 Scope: `App.tsx`, `styles.css`.
+
+---
+
+## T036 — [READY FOR REVIEW] Make the puzzle title in the list clickable — opens edit mode
+
+`App.tsx`'s `HomePage`, `.puzzleTitleRow` — the title (`<div className="puzzleTitle">{p.title}</div>`) is currently plain, non-interactive text sitting right next to a fully-functional Edit icon button in the same row. Make the title itself clickable too, doing the exact same thing as that Edit button: `navigate(`/design/${p.id}`)`.
+
+**1. Make it interactive.** Swap the `<div className="puzzleTitle">` for a `<button type="button" className="puzzleTitle">` (or wrap the existing text in one) with an `onClick` calling `navigate(`/design/${p.id}`)` — same navigation the Edit icon already triggers, just a second entry point to it. Since it's becoming a real button, give it `cursor: pointer` and strip default button chrome (no border/background) so it keeps looking like plain title text until interacted with.
+
+**2. Underline on hover**, per the ask — `.puzzleTitle:hover { text-decoration: underline; }` is enough, no need for anything fancier (color change, etc.) unless it reads better that way once it's actually in the browser, your call.
+
+**Verify:** hovering the title shows an underline and a pointer cursor; clicking it navigates to the same edit view the Edit icon button already opens; the Edit icon button itself is untouched and still works exactly as before (this isn't replacing it, just adding a second way in).
+
+Scope: `App.tsx`, `styles.css`.
