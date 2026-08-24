@@ -200,57 +200,7 @@ Scope: `CrosswordPlayer.tsx` only.
 
 ---
 
-## T040 — [READY FOR REVIEW] Mobile solver layout, part 1: NYT-style single-column structure (grid + clue bar only, ACROSS/DOWN lists hidden)
-
-**Big-picture context — three-part mobile solver overhaul, staged like T033/T034 was for multi-size puzzles. This is part 1 (structure); T041 (clue bar mobile behavior — arrows + tap-to-toggle) and T042 (results screen + keyboard/viewport handling) depend on this landing first, don't start those until this is done and merged.** Reference: NYT's mobile crossword app (user-provided screenshot) — grid dominant and full-width, the blue clue bar directly below it as the *only* clue-navigation surface, no separate ACROSS/DOWN clue lists visible at all on mobile.
-
-**Root cause of today's mobile view being broken, not just "unoptimized" — confirmed live via Playwright's iPhone 13 emulation (390px viewport):** the existing `@media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }` fallback (from T002/T022) has **never actually applied to the solver layout**. `CrosswordPlayer.tsx` always renders `className="layout layoutSolver"`, and `.layout.layoutSolver` (two classes) has an unconditional, always-active `grid-template-columns: minmax(0,0.85fr) minmax(0,0.85fr) minmax(0,2fr)` rule (`styles.css` line ~88) with *higher CSS specificity* than the media query's plain `.layout` (one class) override — so the more specific desktop rule always wins, media query or not. The media query does have its own `.layout.layoutSolver` block (line ~665), but it only overrides `height`/`min-height`, never `grid-template-columns` — so the 3-column layout silently persists at any viewport width. Measured directly: at 390px, `.layout.layoutSolver`'s *computed* `grid-template-columns` was still `84px 84px 198px` (three explicit tracks), producing three overlapping, unusably narrow columns and a 10px-per-cell grid. Screenshot confirms it's genuinely broken, not just cramped.
-
-**The fix isn't "correct the media query's specificity," though — it's a real restructure**, since the target design doesn't want the ACROSS/DOWN columns present at all on mobile (not stacked below the grid, not present in any form):
-
-**1. Hide the ACROSS/DOWN clue panels entirely below the mobile breakpoint.** Reuse the existing 860px breakpoint (already established in this codebase, no reason to introduce a new one) unless testing reveals it needs adjusting. Simplest approach: `display: none` on `.solverCluePanel` inside the media query — purely CSS-driven, no JSX/conditional-rendering changes needed in `CrosswordPlayer.tsx`.
-
-**2. Make `.solverGridPanel` the only visible column, full width, with `grid-template-columns` on `.layout.layoutSolver` actually overridden for real this time** (`1fr`, specificity now moot since it's the only column left, but set it correctly regardless — don't leave the underlying specificity bug uncorrected just because hiding the other panels masks it).
-
-**3. Re-verify the grid's own sizing (the `cqmin`-based approach from T022/T028) still produces a good, dominant, square grid within this new full-width single-column mobile shape.** The container's aspect ratio changes drastically between "one of three columns in a wide desktop panel" and "full-width mobile viewport" — don't assume the existing sizing math just works unchanged; measure it live (cell size, whether the grid comfortably fits above the clue bar without the two needing to fight for space) the same way T022's rounds did, and adjust if needed.
-
-**4. The clue bar itself stays visible and where it already is (above the grid)** — this task is just about making it — and the grid — the *only* two things in view, full width. Its actual mobile-specific *behavior* (bringing back prev/next arrows, tap-to-toggle-direction) is explicitly T041's job, not this one — don't touch `CrosswordPlayer.tsx`'s clue bar JSX/logic in this task, CSS-only restructuring here.
-
-**Verify:** using Playwright's mobile device emulation (e.g. `devices['iPhone 13']`) or real Chrome DevTools device mode, confirm at a real mobile viewport width: no ACROSS/DOWN columns visible anywhere, the grid renders as a proper square filling most of the available width with reasonably-sized cells (not 10px), the clue bar sits above it looking intentional, and nothing overlaps or overflows horizontally. Confirm the existing desktop 3-column layout above 860px is completely unaffected — this should be an invisible change at desktop widths.
-
-Scope: `styles.css` only (plus a one-line `grid-template-columns` fix on the existing `.layoutSolver` media-query block).
-
-**Implementation notes:** Hide uses `.layout.layoutSolver > .solverCluePanel` so it beats `.layout.layoutSolver > .panel { display: flex }`. Mobile solver height stays `calc(100dvh - 120px)` (not `height: auto`) so `cqmin` still has a sized container — measured ~364px square grid / ~22px cells at 390px; desktop remains 3-column. Review follow-up: flex `order` puts the clue bar below the grid on mobile (plus swapped top/bottom margin so the 8px gap stays between them); reset effect pre-selects `entriesAcross[0]` by setting state only, no `focusEntry`/`focusCell`.
-
----
-
-**Review notes (Claude) — the core fix (specificity bug, hiding ACROSS/DOWN, sizing) is correct and confirmed against the diff, no changes needed there. Two things to add, found from live testing on a real mobile viewport — one of these is a gap in the original task spec, not something implemented wrong:**
-
-**1. The clue bar needs to sit BELOW the grid on mobile, not above it — this was a real oversight in how T040 was originally spec'd, not a Cursor mistake.** The task said "the clue bar stays visible and where it already is (above the grid)," but that was written without re-checking the user's own NYT reference screenshot from earlier — which clearly shows the order as grid, *then* the blue clue bar, *then* the keyboard. Below-grid placement also isn't just cosmetic: it's what makes T042's "stays visible when the keyboard opens" requirement actually achievable, since a bar sitting immediately above where the keyboard appears is naturally far more likely to stay on-screen than one pushed up above a full-height grid.
-   - **Fix, CSS-only, no JSX changes needed**: `.gridWrap` is already `display: flex; flex-direction: column` with `.clueBar` before `.grid` in DOM order. Inside the existing 860px mobile media query, swap their *visual* order with the flex `order` property — leave the DOM order alone (desktop keeps working unchanged, no conditional rendering needed):
-     ```css
-     @media (max-width: 860px) {
-       .clueBar {
-         order: 2;
-       }
-       .grid {
-         order: 1;
-       }
-     }
-     ```
-
-**2. On page load, a clue should already be selected — not the "Select a clue to begin" placeholder.** Confirmed: `activeEntryNumber` starts `null` regardless of viewport, so the clue bar sits empty until the solver's first tap. This is low-stakes on desktop (the ACROSS/DOWN lists are right there to browse), but on mobile the clue bar is now the *only* way in — landing on a placeholder is a dead end.
-   - **Fix**: in the puzzle-reset `useEffect` (the one keyed on `[puzzle.id, cellCount]`), instead of leaving `activeDirection`/`activeEntryNumber`/`activeCellIndex` at their blank defaults, default to the first ACROSS entry (`computed.entriesAcross[0]`, already numbered in top-left-to-bottom-right order by the engine, so index `0` is genuinely "the first entry") — guard for the pathological empty-puzzle case where that array could be empty, falling back to today's `null` behavior if so.
-   - **Important, easy to get wrong**: set this state directly (`setActiveDirection`, `setActiveEntryNumber`, `setActiveCellIndex`) — **do not** call `focusEntry()` or `focusCell()` for this. Both of those call `.focus()` on the cell's real `<input>`, which would pop the mobile on-screen keyboard immediately on page load, before the solver's even looked at the puzzle — exactly the kind of jarring behavior to avoid. The clue bar and grid highlight should reflect the pre-selected entry; nothing should actually receive DOM focus until the solver taps something themselves.
-   - This isn't mobile-specific in the code (it's a state default, not CSS) and will also apply on desktop — that's fine, arguably a small improvement there too (no idle empty-bar state), not something that needs gating to mobile-only.
-
-**On the other two things mentioned — already correctly covered, no scope change needed, just confirming:** the prev/next arrows and tap-to-toggle-direction are T041's whole job (still blocked on this task, not skipped); staying visible when the keyboard is open is explicitly T042's job. Both remain scoped as already written — the bar's position fix above is what makes them land cleanly.
-
-**Verify:** on a mobile viewport, confirm the clue bar renders below the grid, not above; confirm loading a puzzle fresh (no prior interaction) shows a real clue in the bar and the correct cell(s) highlighted in the grid, with no on-screen keyboard automatically opening. Confirm desktop is completely unaffected by both changes — clue bar still above the grid there (DOM order unchanged, so this falls out naturally), and the first-entry pre-selection reads fine in the existing 3-column layout too.
-
----
-
-## T041 — [BLOCKED, do not start until T040 is done and merged] Mobile solver layout, part 2: clue bar becomes the primary clue-navigation surface
+## T041 — [TODO] Mobile solver layout, part 2: clue bar becomes the primary clue-navigation surface
 
 Once T040 lands the clue bar is the *only* way to see/navigate clues on mobile (no ACROSS/DOWN lists to fall back on) — this task makes it actually work that way, per the user's reference design and explicit direction.
 
