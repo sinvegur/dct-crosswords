@@ -200,7 +200,7 @@ Scope: `CrosswordPlayer.tsx` only.
 
 ---
 
-## T042 — [TODO] Mobile solver layout, part 3: custom embedded keyboard (replaces relying on the native mobile keyboard) + results screen check
+## T042 — [READY FOR REVIEW] Mobile solver layout, part 3: custom embedded keyboard (replaces relying on the native mobile keyboard) + results screen check
 
 **Superseded scope, explained: this task originally just meant "make `calc(100dvh - 120px)` survive the native keyboard opening." That's no longer the plan.** Live-tested it first (simulating a keyboard eating ~40% of viewport height by shrinking the browser viewport, then measuring/screenshotting the result) and found a real, reproducible bug, not just a rough edge: when the panel's available height shrinks, the grid's `cqmin`-based sizing doesn't leave any room for the clue bar below it — the bar ends up almost entirely clipped by `.solverGridPanel`'s own `overflow-y: auto`, invisible, with no visible scrollbar or other hint that scrolling would reveal it. Measured directly: grid rendered 354×257 (non-square — itself a separate symptom of the same squeeze) while the clue bar's box sat at y:375–433 inside a panel clipped at y:380, meaning all but 5px of the bar was invisible. That's the "completely messed up" the user hit.
 
@@ -234,3 +234,5 @@ Scope: `CrosswordPlayer.tsx` only.
 **Verify:** on mobile emulation, confirm the custom keyboard appears below the clue bar, tapping letters (including the Turkish-specific ones) fills the active cell and auto-advances exactly like physical typing does today, Backspace correctly handles both the filled-cell and empty-cell cases, and the active cell's highlight/focus state doesn't visibly break when tapping keys. Confirm desktop is completely unaffected — no custom keyboard rendered, `inputMode` unset, physical typing unchanged. Finish solving a puzzle on mobile and confirm the results/leaderboard screen displays cleanly.
 
 Scope: `CrosswordPlayer.tsx`, `styles.css`, plus a new small hook (e.g. `src/lib/useIsMobile.ts`) if that's the cleanest place for it.
+
+**Implementation notes:** Keyboard is a Turkish-QWERTY-ish 3-row layout (includes Ç/Ğ/İ/I/Ö/Ş/Ü) with Backspace on the last row. Grid sits in a `.gridSlot` size container on mobile so `cqmin` is the leftover space above the clue bar + keyboard, not the full panel. `inputMode="none"` is set on mobile and omitted on desktop; whether that actually suppresses the native OS keyboard needs a real-device check (iOS Safari especially) — emulation can only confirm the attribute, the custom keys, and that desktop is unchanged. Results/leaderboard: only added `overflow-y: auto` + flex fill on mobile so a long board can scroll; no visual redesign.
