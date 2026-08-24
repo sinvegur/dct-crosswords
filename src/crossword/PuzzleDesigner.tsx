@@ -1,27 +1,27 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Grid2x2, PencilLine, Shuffle } from 'lucide-react';
 import { ShuffleConfirmModal } from '@/components/ShuffleConfirmModal';
 import { UnsavedChangesModal } from '@/components/UnsavedChangesModal';
 import {
-  TEMPLATES_15,
+  templatesForSize,
   mirrorPos,
   templateToEmptySolution,
   type StartingGridId,
-  type Template15,
+  type Template,
 } from '@/data/templates';
 import { registerGuard, runGuarded, unregisterGuard } from '@/lib/navigationGuard';
-import { SIZE_15, computeEntries15, type Direction, type Entry } from './engine';
-import type { Puzzle15 } from './types';
+import { SIZE_15, computeEntries, type Direction, type Entry } from './engine';
+import type { Puzzle } from './types';
 
 const TOOLBAR_ICON_SIZE = 16;
 const AUTOFILL_LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
-function idxOf(row: number, col: number) {
-  return row * SIZE_15 + col;
+function idxOf(size: number, row: number, col: number) {
+  return row * size + col;
 }
 
-function posOf(index: number) {
-  return { row: Math.floor(index / SIZE_15), col: index % SIZE_15 };
+function posOf(size: number, index: number) {
+  return { row: Math.floor(index / size), col: index % size };
 }
 
 function normalizeLetter(raw: string) {
@@ -31,7 +31,8 @@ function normalizeLetter(raw: string) {
 }
 
 function gridFromRows(rows: string[]): string[] {
-  return rows.map((r) => r.padEnd(SIZE_15, ' ').slice(0, SIZE_15));
+  const size = rows.length;
+  return rows.map((r) => r.padEnd(size, ' ').slice(0, size));
 }
 
 function rowsToFlat(rows: string[]): string[] {
@@ -45,7 +46,7 @@ type DesignerSnapshot = {
   cluesDown: Record<number, string>;
 };
 
-function initialRows(initial?: Puzzle15, startingTemplate?: Template15): string[] {
+function initialRows(initial?: Puzzle, startingTemplate?: Template): string[] {
   if (initial?.solutionGrid) return initial.solutionGrid;
   if (startingTemplate) return templateToEmptySolution(startingTemplate);
   return Array.from({ length: SIZE_15 }, () => ' '.repeat(SIZE_15));
@@ -95,8 +96,9 @@ function hasDesignerProgress(
   return false;
 }
 
-function pickShuffleTemplate(excludeId: StartingGridId | null): Template15 {
-  const patterned = TEMPLATES_15.filter((t) => t.id !== 'blank');
+function pickShuffleTemplate(excludeId: StartingGridId | null, size: number): Template | null {
+  const patterned = templatesForSize(size).filter((t) => t.id !== 'blank');
+  if (patterned.length === 0) return null;
   const pool = patterned.filter((t) => t.id !== excludeId);
   const choices = pool.length > 0 ? pool : patterned;
   return choices[Math.floor(Math.random() * choices.length)]!;
@@ -105,10 +107,10 @@ function pickShuffleTemplate(excludeId: StartingGridId | null): Template15 {
 type EditMode = 'letter' | 'block';
 
 type Props = {
-  initial?: Puzzle15;
+  initial?: Puzzle;
   /** Starting layout when creating a new puzzle (from the modal). */
-  startingTemplate?: Template15;
-  onSaved: (puzzle: Puzzle15, action: 'draft' | 'published') => void | Promise<void>;
+  startingTemplate?: Template;
+  onSaved: (puzzle: Puzzle, action: 'draft' | 'published') => void | Promise<void>;
   onCancel: () => void;
 };
 
@@ -152,7 +154,8 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
   const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
 
   const applyShuffle = () => {
-    const nextTemplate = pickShuffleTemplate(lastShuffledTemplateId);
+    const nextTemplate = pickShuffleTemplate(lastShuffledTemplateId, rows.length);
+    if (!nextTemplate) return;
     setRows(templateToEmptySolution(nextTemplate));
     setCluesAcross({});
     setCluesDown({});
@@ -170,10 +173,11 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
     applyShuffle();
   };
 
+  const size = rows.length;
   const solutionGrid = useMemo(() => gridFromRows(rows), [rows]);
   const computed = useMemo(() => {
     try {
-      return computeEntries15(solutionGrid);
+      return computeEntries(solutionGrid);
     } catch {
       return null;
     }
@@ -186,13 +190,13 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
 
   const activeEntryCellIndices = useMemo(() => {
     if (!activeEntry) return new Set<number>();
-    return new Set(activeEntry.cells.map((c) => idxOf(c.row, c.col)));
-  }, [activeEntry]);
+    return new Set(activeEntry.cells.map((c) => idxOf(size, c.row, c.col)));
+  }, [activeEntry, size]);
 
   const flat = useMemo(() => rowsToFlat(solutionGrid), [solutionGrid]);
 
   const setCellLetter = (cellIndex: number, letter: string) => {
-    const { row, col } = posOf(cellIndex);
+    const { row, col } = posOf(size, cellIndex);
     if (solutionGrid[row][col] === '#') return;
 
     setRows((prev) => {
@@ -211,7 +215,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
       };
       apply(row, col);
       if (symmetry) {
-        const m = mirrorPos(row, col);
+        const m = mirrorPos(row, col, size);
         apply(m.row, m.col);
       }
       return next.map((r) => r.join(''));
@@ -221,7 +225,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
   };
 
   const pickCell = (cellIndex: number) => {
-    const { row, col } = posOf(cellIndex);
+    const { row, col } = posOf(size, cellIndex);
     if (solutionGrid[row][col] === '#') return;
     if (!computed) return;
 
@@ -245,7 +249,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
 
   const resolveEntryAtCell = (cellIndex: number, direction: Direction): Entry | undefined => {
     if (!computed) return undefined;
-    const { row, col } = posOf(cellIndex);
+    const { row, col } = posOf(size, cellIndex);
     const acrossNum = computed.acrossEntryNumberByCell.get(`${row},${col}`);
     const downNum = computed.downEntryNumberByCell.get(`${row},${col}`);
 
@@ -269,7 +273,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
   };
 
   const moveInResolvedEntry = (entry: Entry, from: number, delta: 1 | -1) => {
-    const indices = entry.cells.map((c) => idxOf(c.row, c.col));
+    const indices = entry.cells.map((c) => idxOf(size, c.row, c.col));
     const pos = indices.indexOf(from);
     if (pos === -1) return;
     const next = indices[pos + delta];
@@ -283,13 +287,13 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
     let entry = resolveEntryAtCell(cellIndex, activeDirection);
     if (!entry) return;
 
-    let indices = entry.cells.map((c) => idxOf(c.row, c.col));
+    let indices = entry.cells.map((c) => idxOf(size, c.row, c.col));
     let pos = indices.indexOf(cellIndex);
 
     if (pos === -1) {
       entry = resolveEntryAtCell(cellIndex, activeDirection === 'across' ? 'down' : 'across');
       if (!entry) return;
-      indices = entry.cells.map((c) => idxOf(c.row, c.col));
+      indices = entry.cells.map((c) => idxOf(size, c.row, c.col));
       pos = indices.indexOf(cellIndex);
       if (pos === -1) return;
       pickCell(cellIndex);
@@ -305,7 +309,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
 
   const toggleDirection = () => {
     if (activeCellIndex == null || !computed) return;
-    const { row, col } = posOf(activeCellIndex);
+    const { row, col } = posOf(size, activeCellIndex);
     const acrossNum = computed.acrossEntryNumberByCell.get(`${row},${col}`);
     const downNum = computed.downEntryNumberByCell.get(`${row},${col}`);
     if (activeDirection === 'across' && downNum != null) {
@@ -334,7 +338,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
   };
 
   const onCellClick = (cellIndex: number) => {
-    const { row, col } = posOf(cellIndex);
+    const { row, col } = posOf(size, cellIndex);
     if (editMode === 'block') {
       toggleBlockAt(row, col);
       return;
@@ -407,7 +411,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
     return () => window.removeEventListener('beforeunload', handler);
   }, [isDirty]);
 
-  const buildPuzzle = (status: 'draft' | 'published'): Puzzle15 | null => {
+  const buildPuzzle = (status: 'draft' | 'published'): Puzzle | null => {
     if (status === 'published' && !canPublish) return null;
 
     const cleanGrid = solutionGrid.map((row) =>
@@ -428,6 +432,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
       slug: initial?.slug ?? '',
       status,
       title: title.trim() || 'Untitled',
+      size,
       solutionGrid: cleanGrid,
       clues: { across: cluesAcross, down: cluesDown },
       meta: {
@@ -553,7 +558,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
                     if (editMode === 'block') return;
                     setActiveDirection('across');
                     setActiveEntryNumber(e.number);
-                    focusCell(idxOf(e.start.row, e.start.col));
+                    focusCell(idxOf(size, e.start.row, e.start.col));
                   }}
                 >
                   <div className="clueMeta">
@@ -589,7 +594,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
                     if (editMode === 'block') return;
                     setActiveDirection('down');
                     setActiveEntryNumber(e.number);
-                    focusCell(idxOf(e.start.row, e.start.col));
+                    focusCell(idxOf(size, e.start.row, e.start.col));
                   }}
                 >
                   <div className="clueMeta">
@@ -715,7 +720,12 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
             type="button"
             className="toolbarControl"
             aria-label="Shuffle grid layout"
-            title="Shuffle grid layout"
+            title={
+              templatesForSize(size).some((t) => t.id !== 'blank')
+                ? 'Shuffle grid layout'
+                : 'No other layouts for this size'
+            }
+            disabled={!templatesForSize(size).some((t) => t.id !== 'blank')}
             onClick={requestShuffle}
           >
             <Shuffle size={TOOLBAR_ICON_SIZE} aria-hidden />
@@ -723,9 +733,12 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
         </div>
 
         <div className="gridWrap">
-          <div className={`grid ${editMode === 'block' ? 'gridBlockMode' : ''}`}>
-            {Array.from({ length: SIZE_15 * SIZE_15 }, (_, cellIndex) => {
-              const { row, col } = posOf(cellIndex);
+          <div
+            className={`grid ${editMode === 'block' ? 'gridBlockMode' : ''}`}
+            style={{ '--grid-size': size } as CSSProperties}
+          >
+            {Array.from({ length: size * size }, (_, cellIndex) => {
+              const { row, col } = posOf(size, cellIndex);
               const ch = flat[cellIndex];
               const numAtCell = computed?.cellNumber[row][col] ?? null;
               const isBlock = ch === '#';

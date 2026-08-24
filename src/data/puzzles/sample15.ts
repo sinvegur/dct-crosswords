@@ -1,5 +1,5 @@
-import type { Puzzle15 } from '@/crossword/types';
-import { SIZE_15, computeEntries15 } from '@/crossword/engine';
+import type { Puzzle } from '@/crossword/types';
+import { SIZE_15, computeEntries } from '@/crossword/engine';
 
 const turkishAlphabet = [
   'A',
@@ -51,7 +51,7 @@ function makeSolutionGrid15(): string[] {
 }
 
 const solutionGrid = makeSolutionGrid15();
-const computed = computeEntries15(solutionGrid);
+const computed = computeEntries(solutionGrid);
 
 const clues = {
   across: Object.fromEntries(
@@ -70,11 +70,12 @@ const clues = {
   ),
 };
 
-export const samplePuzzle15: Puzzle15 = {
+export const samplePuzzle15: Puzzle = {
   id: 'sample-15-border',
   slug: 'sample-15-border',
   status: 'draft',
   title: 'Sample 15x15 (Turkish character test)',
+  size: SIZE_15,
   solutionGrid,
   clues,
   meta: {
