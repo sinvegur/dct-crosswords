@@ -118,7 +118,7 @@ Scope: `CrosswordPlayer.tsx` only.
 
 ---
 
-## T035 — [TODO] Copy-link button on the puzzle list for published puzzles
+## T035 — [READY FOR REVIEW] Copy-link button on the puzzle list for published puzzles
 
 Right now the only place a creator ever sees a puzzle's shareable link is the one-time `PublishSuccessModal` at the moment of publishing — close that modal and there's no way to get the link again without manually constructing it from the slug. Add a copy-to-clipboard affordance directly on the puzzle list.
 
