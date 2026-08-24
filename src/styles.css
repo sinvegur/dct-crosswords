@@ -663,12 +663,23 @@ textarea {
   }
 
   .layout.layoutSolver {
-    height: auto;
+    grid-template-columns: 1fr;
+    height: calc(100dvh - 120px);
     min-height: 0;
   }
 
-  .solverCluePanel .cluesScroll {
-    max-height: 280px;
+  .layout.layoutSolver > .solverCluePanel {
+    display: none;
+  }
+
+  .clueBar {
+    order: 2;
+    margin-bottom: 0;
+    margin-top: 8px;
+  }
+
+  .grid {
+    order: 1;
   }
 }
 
