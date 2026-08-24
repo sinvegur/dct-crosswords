@@ -175,3 +175,25 @@ Verified live: the blue clue bar (`.clueBarText`, `styles.css`) has no reserved 
 **Verify:** click through several clues of differing lengths (one line, two lines) and confirm the grid's vertical position stays completely fixed, *and* that a one-line clue now visually centers within the bar rather than sitting at the top with empty space below. Find or write a clue long enough to wrap to three-plus lines and confirm it still displays in full, uncut, even though the grid does shift slightly for that rare case.
 
 Scope: `styles.css` only.
+
+---
+
+## T039 — [READY FOR REVIEW] Persist solver progress (filled letters + elapsed time) across a page refresh
+
+Right now `CrosswordPlayer.tsx`'s puzzle-reset `useEffect` (keyed on `[puzzle.id, size]`) unconditionally blanks `filled` and resets `startAtMs` to `Date.now()` every time the component mounts — which includes a plain page refresh, not just navigating to a different puzzle. A solver who refreshes mid-solve loses every letter they've typed and the timer restarts from zero. Fix with `localStorage`, matching the existing per-puzzle persistence pattern already used for `bestTimeMs` (`dct-crosswords:bestTime:${puzzle.id}`) — same idea, new key.
+
+**1. New localStorage key**: `dct-crosswords:progress:${puzzle.id}`, storing JSON `{ filled: string[], startAtMs: number }`.
+
+**2. Restore on mount instead of always blanking.** In the existing reset `useEffect`, before falling back to a blank grid and `Date.now()`, check localStorage for this key. If present, parse it and validate before trusting it: `filled` must be an array of exactly `size * size` entries, `startAtMs` must be a finite number greater than 0. If valid, use those values for the initial `filled`/`startAtMs` instead of the blank defaults; if missing, malformed, or the wrong length (e.g. leftover data from a puzzle that's since changed size), fall back to today's behavior (blank grid, fresh `Date.now()`) exactly as now.
+
+**3. Save progress as the solver types.** Add a `useEffect` watching `filled` (and skip writing once `solved` is true — no need to keep saving a finished grid) that writes `{ filled, startAtMs }` to that key on every change. `startAtMs` itself doesn't change after the initial mount/restore, so this is really just "keep `filled` in sync," but store both together as one JSON blob for simplicity.
+
+**4. Clear the saved progress once the puzzle is solved — this matters, don't skip it.** In `finishIfSolved` (where `solved`/`elapsedMs` get set), also `localStorage.removeItem` this puzzle's progress key. **Why this specifically matters**: the win-detection/submission `useEffect` guards against double-submitting with `submittedRef`, but that's a plain `useRef` — it resets to `false` on every fresh mount, refresh included. If a *solved* grid's `filled` array were left sitting in localStorage and got restored on a later refresh, `checkSolved` would immediately return true again on mount and the submission effect would fire a second time, submitting a duplicate leaderboard entry for the same solve. Clearing progress the moment `solved` becomes true means a refresh after finishing always starts that puzzle fresh (empty grid) rather than replaying an already-solved state — sidesteps the duplicate-submission risk entirely rather than needing to persist and check a separate "already submitted" flag.
+
+**Deliberately not restoring**: `activeDirection`, `activeEntryNumber`, `activeCellIndex`, or cursor/selection position — those aren't part of what was asked (letters + time only) and adding them is meaningfully more state to reason about for comparatively little benefit; a refreshed solver landing with no active cell selected (today's existing default) and their letters/timer intact is a fine outcome.
+
+**Verify:** type several letters into a puzzle, note the elapsed time, refresh the page — confirm the same letters are still there and the timer continues climbing from roughly where it left off rather than resetting to 0:00. Solve the puzzle fully and confirm it submits to the leaderboard exactly once (check for a duplicate entry). Refresh again after solving and confirm a completely fresh, blank grid appears — not the solved state being restored. Also sanity-check switching between two *different* puzzles (e.g. via two browser tabs, or navigating away and back) still each keep their own independent saved progress, not overwriting each other.
+
+Scope: `CrosswordPlayer.tsx` only.
+
+**Implementation notes:** Also seed `useState` initializers from the same validated progress blob so the first paint (and the save effect) don't briefly overwrite a good restore with a blank grid.
