@@ -200,7 +200,7 @@ Scope: `CrosswordPlayer.tsx` only.
 
 ---
 
-## T041 — [TODO] Mobile solver layout, part 2: clue bar becomes the primary clue-navigation surface
+## T041 — [READY FOR REVIEW] Mobile solver layout, part 2: clue bar becomes the primary clue-navigation surface
 
 Once T040 lands the clue bar is the *only* way to see/navigate clues on mobile (no ACROSS/DOWN lists to fall back on) — this task makes it actually work that way, per the user's reference design and explicit direction.
 
@@ -211,6 +211,8 @@ Once T040 lands the clue bar is the *only* way to see/navigate clues on mobile (
 **Verify:** at a mobile viewport, confirm the prev/next arrows are visible and step through entries correctly (same cycling/wrap-around behavior as Tab already has); confirm the arrows are NOT visible at desktop widths (unchanged from before T023 removed them — no regression there). Tap the clue bar's text on a cell that starts both an across and a down entry and confirm it toggles direction, updating the grid highlight and the bar's own label/text to match. Confirm the existing tap-active-cell-to-toggle gesture still also works unchanged. Confirm tapping the arrows doesn't also accidentally trigger the toggle (they need separate, non-overlapping tap targets).
 
 Scope: `CrosswordPlayer.tsx`, `styles.css`.
+
+**Implementation notes:** Restored T023-era `.clueBarNav` chevrons; hidden by default (`display: none`), shown as `inline-flex` inside the existing `max-width: 860px` query. Tap-to-toggle is `onClick` on `.clueBarBody` only — arrow buttons are siblings, so they don't fire the toggle.
 
 ---
 
