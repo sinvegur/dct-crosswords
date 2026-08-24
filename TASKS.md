@@ -150,7 +150,7 @@ Scope: `App.tsx`, `styles.css`.
 
 ---
 
-## T038 — [TODO] Stop the grid from shifting up/down when switching between short and long clues
+## T038 — [READY FOR REVIEW] Stop the grid from shifting up/down when switching between short and long clues
 
 Verified live: the blue clue bar (`.clueBarText`, `styles.css`) has no reserved height, so it's exactly as tall as its current clue's text needs — one line for a short clue, two (or more) for a long one. Since the grid sits directly below the bar, switching from a short clue to a long one grows the bar and visibly pushes the grid down (and back up again switching back). Measured directly: 39px bar / grid top at 123px for a short clue vs. 58px bar / grid top at 142px for a long one that wraps to two lines — a 19px jump every time.
 
