@@ -116,3 +116,20 @@ const solveInstantly = () => {
 
 Scope: `CrosswordPlayer.tsx` only.
 
+---
+
+## T035 — [TODO] Copy-link button on the puzzle list for published puzzles
+
+Right now the only place a creator ever sees a puzzle's shareable link is the one-time `PublishSuccessModal` at the moment of publishing — close that modal and there's no way to get the link again without manually constructing it from the slug. Add a copy-to-clipboard affordance directly on the puzzle list.
+
+**Placement — deliberately not in the `.puzzleActions` icon row.** That row (Edit/Delete/Play/Leaderboard, from T030) was specifically redesigned to always render exactly four fixed-position square buttons so every row aligns identically down the list — adding a fifth button there that only sometimes appears would reintroduce the exact row-misalignment problem T030 fixed. Instead, put it in `.puzzleTitleRow` (`App.tsx`, `HomePage`), right after the existing status badge (`<span className="puzzleStatus ...">`). This row already reads naturally as "identity/metadata about the puzzle" (title + status) rather than "actions you take on it," and a share link is closer to that category. **Only render it when `p.status === 'published'`** — a draft has no working public link, so there's nothing to copy.
+
+**1. Reuse the existing copy pattern, don't reinvent it.** `PublishSuccessModal.tsx` already has a working copy-to-clipboard implementation worth mirroring exactly: `navigator.clipboard.writeText(...)`, a `copied` boolean flipped true on success, and `window.setTimeout(() => setCopied(false), 2000)` to revert it. The one difference here: since `HomePage` renders a *list* of puzzles, a single shared `copied` boolean won't work — track it per-row instead, e.g. `const [copiedPuzzleId, setCopiedPuzzleId] = useState<string | null>(null);`, compare `copiedPuzzleId === p.id` per row to decide which one (if any) shows the "copied" state.
+
+**2. Small icon-only button, icon swaps to a checkmark on copy.** Use `lucide-react` (already a dependency) — `Link` or `Link2` for the default state, `Check` for the ~2-second "just copied" state, matching the icon-swap idea the user described. This doesn't need to be a heavy `.toolbarControl`-style 36px square button (that's the action row's look) — something lighter/smaller fits better sitting inline next to a title and status badge; `.linkButton`'s existing minimal styling (no border/background) is a reasonable starting point to adapt, though it's currently tuned for text links so some adjustment for an icon-only button is expected. Always include `aria-label`/`title`, updated to match state (e.g. `"Copy solver link"` → `"Copied!"`).
+
+**3. The link itself**: `${window.location.origin}/p/${p.slug}` — same construction already used for `PublishSuccessModal`'s `shareUrl` in `AppShell`'s `handleSaved`.
+
+**Verify:** on a published puzzle, click the new icon — confirm the link lands on the clipboard (paste it somewhere to check), the icon swaps to a checkmark, and it reverts back to the link icon after ~2 seconds. Confirm draft puzzles show no copy affordance at all. Click it on two different published puzzles in the list and confirm each row's icon-swap is independent — copying one row's link doesn't show a checkmark on a different row.
+
+Scope: `App.tsx`, `styles.css`.
