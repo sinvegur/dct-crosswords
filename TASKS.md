@@ -200,7 +200,7 @@ Scope: `CrosswordPlayer.tsx` only.
 
 ---
 
-## T040 — [TODO] Mobile solver layout, part 1: NYT-style single-column structure (grid + clue bar only, ACROSS/DOWN lists hidden)
+## T040 — [READY FOR REVIEW] Mobile solver layout, part 1: NYT-style single-column structure (grid + clue bar only, ACROSS/DOWN lists hidden)
 
 **Big-picture context — three-part mobile solver overhaul, staged like T033/T034 was for multi-size puzzles. This is part 1 (structure); T041 (clue bar mobile behavior — arrows + tap-to-toggle) and T042 (results screen + keyboard/viewport handling) depend on this landing first, don't start those until this is done and merged.** Reference: NYT's mobile crossword app (user-provided screenshot) — grid dominant and full-width, the blue clue bar directly below it as the *only* clue-navigation surface, no separate ACROSS/DOWN clue lists visible at all on mobile.
 
@@ -219,6 +219,8 @@ Scope: `CrosswordPlayer.tsx` only.
 **Verify:** using Playwright's mobile device emulation (e.g. `devices['iPhone 13']`) or real Chrome DevTools device mode, confirm at a real mobile viewport width: no ACROSS/DOWN columns visible anywhere, the grid renders as a proper square filling most of the available width with reasonably-sized cells (not 10px), the clue bar sits above it looking intentional, and nothing overlaps or overflows horizontally. Confirm the existing desktop 3-column layout above 860px is completely unaffected — this should be an invisible change at desktop widths.
 
 Scope: `styles.css` only (plus a one-line `grid-template-columns` fix on the existing `.layoutSolver` media-query block).
+
+**Implementation notes:** Hide uses `.layout.layoutSolver > .solverCluePanel` so it beats `.layout.layoutSolver > .panel { display: flex }`. Mobile solver height stays `calc(100dvh - 120px)` (not `height: auto`) so `cqmin` still has a sized container — measured ~364px square grid / ~22px cells at 390px; desktop remains 3-column.
 
 ---
 
