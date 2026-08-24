@@ -200,21 +200,7 @@ Scope: `CrosswordPlayer.tsx` only.
 
 ---
 
-## T041 — [TODO] Mobile solver layout, part 2: clue bar becomes the primary clue-navigation surface
-
-Once T040 lands the clue bar is the *only* way to see/navigate clues on mobile (no ACROSS/DOWN lists to fall back on) — this task makes it actually work that way, per the user's reference design and explicit direction.
-
-**1. Bring back the prev/next arrows — mobile only.** T023 removed the clue bar's `ChevronLeft`/`ChevronRight` arrow buttons for desktop specifically, on the reasoning (at the time, correct) that they were redundant there since the full ACROSS/DOWN lists were already visible and clickable — and that reasoning explicitly said arrows "only earn their keep in a future mobile layout where the clue list isn't visible alongside the grid." This is that future task. Re-add the two arrow buttons (same `lucide-react` icons, same `stepEntry(-1)`/`stepEntry(1)` wiring as before — nothing new to build, this logic already exists and is already used by Tab/Shift+Tab) to the clue bar JSX, but only *visible* on mobile — render them always in the JSX and hide via the same 860px media query (`display: none` above it), rather than JS-based screen-size branching, consistent with how the rest of this responsive work is being done purely in CSS.
-
-**2. Tapping the clue bar (the label/text area, not the new arrow buttons) toggles direction for the current cell.** Per the user's explicit direction: on mobile, tapping the clue itself changes between across/down — this is in *addition* to the existing desktop gesture (tapping an already-active grid cell that starts both an across and down entry, from T026), not a replacement for it; both should keep working everywhere. The function to call already exists and needs no changes — `toggleDirectionForActiveCell()` (already wired to the Space key) — just add an `onClick` to `.clueBarBody` (or the label/text spans specifically, excluding the arrow buttons' own click targets) that calls it.
-
-**Verify:** at a mobile viewport, confirm the prev/next arrows are visible and step through entries correctly (same cycling/wrap-around behavior as Tab already has); confirm the arrows are NOT visible at desktop widths (unchanged from before T023 removed them — no regression there). Tap the clue bar's text on a cell that starts both an across and a down entry and confirm it toggles direction, updating the grid highlight and the bar's own label/text to match. Confirm the existing tap-active-cell-to-toggle gesture still also works unchanged. Confirm tapping the arrows doesn't also accidentally trigger the toggle (they need separate, non-overlapping tap targets).
-
-Scope: `CrosswordPlayer.tsx`, `styles.css`.
-
----
-
-## T042 — [BLOCKED, do not start until T040 is done and merged] Mobile solver layout, part 3: results/leaderboard screen fits the mobile view, keyboard-safe viewport height
+## T042 — [TODO] Mobile solver layout, part 3: results/leaderboard screen fits the mobile view, keyboard-safe viewport height
 
 **1. Confirm (and fix if needed) the "Solved!" results screen — including the leaderboard — looks right in the new single-column mobile shape from T040.** This screen already exists and already replaces the grid area when `solved` is true, regardless of viewport, so it may already be mostly fine (it's simple vertical content, not a multi-column layout) — but it hasn't been checked against a real mobile viewport since it was built entirely in a desktop 3-column context. Verify live (mobile emulation) rather than assuming; fix spacing/sizing only if something's actually found to be wrong, don't preemptively redesign a screen that already works.
 
