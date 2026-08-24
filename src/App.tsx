@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { PencilLine, Play, Trash2, Trophy } from 'lucide-react';
+import { Check, Link2, PencilLine, Play, Trash2, Trophy } from 'lucide-react';
 import {
   BrowserRouter,
   Navigate,
@@ -288,7 +288,21 @@ function HomePage({
   const [actionError, setActionError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Puzzle | null>(null);
   const [leaderboardTarget, setLeaderboardTarget] = useState<Puzzle | null>(null);
+  const [copiedPuzzleId, setCopiedPuzzleId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  const copyPuzzleLink = async (puzzle: Puzzle) => {
+    if (!puzzle.slug) return;
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/p/${puzzle.slug}`);
+      setCopiedPuzzleId(puzzle.id);
+      window.setTimeout(() => {
+        setCopiedPuzzleId((current) => (current === puzzle.id ? null : current));
+      }, 2000);
+    } catch {
+      setCopiedPuzzleId(null);
+    }
+  };
 
   const confirmDelete = async () => {
     if (!deleteTarget) return;
@@ -345,6 +359,21 @@ function HomePage({
                   >
                     {p.status === 'published' ? 'Published' : 'Draft'}
                   </span>
+                  {p.status === 'published' && p.slug ? (
+                    <button
+                      type="button"
+                      className="copyPuzzleLink"
+                      aria-label={copiedPuzzleId === p.id ? 'Copied!' : 'Copy solver link'}
+                      title={copiedPuzzleId === p.id ? 'Copied!' : 'Copy solver link'}
+                      onClick={() => void copyPuzzleLink(p)}
+                    >
+                      {copiedPuzzleId === p.id ? (
+                        <Check size={14} aria-hidden />
+                      ) : (
+                        <Link2 size={14} aria-hidden />
+                      )}
+                    </button>
+                  ) : null}
                 </div>
                 <div className="subtle">
                   {p.meta?.createdAtISO
