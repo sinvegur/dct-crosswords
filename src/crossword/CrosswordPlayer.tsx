@@ -44,11 +44,12 @@ export function formatElapsedMs(ms: number): string {
 
 export { SOLVER_NAME_KEY };
 
-const KEYBOARD_ROWS = [
-  ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', 'Ğ', 'Ü'],
-  ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'Ş', 'İ'],
-  ['Z', 'X', 'C', 'V', 'B', 'N', 'M', 'Ö', 'Ç'],
+const LATIN_KEYBOARD_ROWS = [
+  ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', 'A', 'S', 'D'],
+  ['F', 'G', 'H', 'J', 'K', 'L', 'Z', 'X', 'C', 'V', 'B', 'N', 'M'],
 ] as const;
+
+const TURKISH_EXTRA_LETTERS = ['Ç', 'Ğ', 'İ', 'Ö', 'Ş', 'Ü'] as const;
 
 function progressKey(puzzleId: string) {
   return `dct-crosswords:progress:${puzzleId}`;
@@ -138,6 +139,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
   const [resultsLoading, setResultsLoading] = useState(false);
 
   const [bestTimeMs, setBestTimeMs] = useState<number | null>(null);
+  const [showTurkishKeys, setShowTurkishKeys] = useState(false);
 
   useEffect(() => {
     const saved = loadProgress(puzzle.id, cellCount);
@@ -492,6 +494,11 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     onCellInputChange(activeCellIndex, letter);
   };
 
+  const handleKeyboardTurkishLetter = (letter: string) => {
+    handleKeyboardLetter(letter);
+    setShowTurkishKeys(false);
+  };
+
   const preventKeyboardFocusSteal = (e: { preventDefault: () => void }) => {
     e.preventDefault();
   };
@@ -771,7 +778,33 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
             </div>
             {isMobile ? (
               <div className="solverKeyboard" role="group" aria-label="On-screen keyboard">
-                {KEYBOARD_ROWS.map((row, rowIndex) => (
+                {showTurkishKeys ? (
+                  <div className="solverKeyboardRow">
+                    {TURKISH_EXTRA_LETTERS.map((letter) => (
+                      <button
+                        key={letter}
+                        type="button"
+                        className="solverKey"
+                        onMouseDown={preventKeyboardFocusSteal}
+                        onClick={() => handleKeyboardTurkishLetter(letter)}
+                      >
+                        {letter}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      className="solverKey solverKeyWide"
+                      aria-label="Back to letters"
+                      onMouseDown={preventKeyboardFocusSteal}
+                      onClick={() => setShowTurkishKeys(false)}
+                    >
+                      ABC
+                    </button>
+                  </div>
+                ) : null}
+                {LATIN_KEYBOARD_ROWS.map((row, rowIndex) => {
+                  if (showTurkishKeys && rowIndex === 0) return null;
+                  return (
                   <div key={rowIndex} className="solverKeyboardRow">
                     {row.map((letter) => (
                       <button
@@ -784,19 +817,33 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
                         {letter}
                       </button>
                     ))}
-                    {rowIndex === KEYBOARD_ROWS.length - 1 ? (
-                      <button
-                        type="button"
-                        className="solverKey solverKeyWide"
-                        aria-label="Backspace"
-                        onMouseDown={preventKeyboardFocusSteal}
-                        onClick={handleKeyboardBackspace}
-                      >
-                        ⌫
-                      </button>
+                    {rowIndex === LATIN_KEYBOARD_ROWS.length - 1 ? (
+                      <>
+                        {!showTurkishKeys ? (
+                          <button
+                            type="button"
+                            className="solverKey solverKeyWide"
+                            aria-label="Turkish letters"
+                            onMouseDown={preventKeyboardFocusSteal}
+                            onClick={() => setShowTurkishKeys(true)}
+                          >
+                            TR
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          className="solverKey solverKeyWide"
+                          aria-label="Backspace"
+                          onMouseDown={preventKeyboardFocusSteal}
+                          onClick={handleKeyboardBackspace}
+                        >
+                          ⌫
+                        </button>
+                      </>
                     ) : null}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             ) : null}
           </div>
