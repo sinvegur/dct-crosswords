@@ -8,6 +8,7 @@ import {
   submitAttempt,
   type LeaderboardEntry,
 } from '@/lib/storage';
+import { useIsMobile } from '@/lib/useIsMobile';
 
 const SOLVER_NAME_KEY = 'dct-crosswords:solverName';
 
@@ -43,6 +44,12 @@ export function formatElapsedMs(ms: number): string {
 
 export { SOLVER_NAME_KEY };
 
+const KEYBOARD_ROWS = [
+  ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', 'Ğ', 'Ü'],
+  ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'Ş', 'İ'],
+  ['Z', 'X', 'C', 'V', 'B', 'N', 'M', 'Ö', 'Ç'],
+] as const;
+
 function progressKey(puzzleId: string) {
   return `dct-crosswords:progress:${puzzleId}`;
 }
@@ -76,6 +83,7 @@ type Props = {
 };
 
 export function CrosswordPlayer({ puzzle, solverName }: Props) {
+  const isMobile = useIsMobile();
   const size = puzzle.size;
   const cellCount = size * size;
   const computed = useMemo(() => computeEntries(puzzle.solutionGrid), [puzzle.id]);
@@ -467,6 +475,24 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     else moveInResolvedEntry(entry, cellIndex, 1);
   };
 
+  const handleKeyboardBackspace = () => {
+    if (activeCellIndex == null || solved) return;
+    if (filled[activeCellIndex]) {
+      onCellInputChange(activeCellIndex, '');
+    } else {
+      backspaceEmptyCell(activeCellIndex);
+    }
+  };
+
+  const handleKeyboardLetter = (letter: string) => {
+    if (activeCellIndex == null || solved) return;
+    onCellInputChange(activeCellIndex, letter);
+  };
+
+  const preventKeyboardFocusSteal = (e: { preventDefault: () => void }) => {
+    e.preventDefault();
+  };
+
   const userOnLeaderboard = attemptId != null && leaderboard.some((e) => e.id === attemptId);
   const showRankOutsideTop =
     userRank != null && leaderboard.length > 0 && !userOnLeaderboard;
@@ -659,6 +685,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
                 <ChevronRight size={20} aria-hidden />
               </button>
             </div>
+            <div className="gridSlot">
             <div
               className="grid"
               tabIndex={0}
@@ -698,7 +725,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
                       }}
                       value={value}
                       maxLength={1}
-                      inputMode="text"
+                      inputMode={isMobile ? 'none' : undefined}
                       autoCorrect="off"
                       spellCheck={false}
                       onFocus={() => handlePickCell(cellIndex)}
@@ -732,6 +759,37 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
                 );
               })}
             </div>
+            </div>
+            {isMobile ? (
+              <div className="solverKeyboard" role="group" aria-label="On-screen keyboard">
+                {KEYBOARD_ROWS.map((row, rowIndex) => (
+                  <div key={rowIndex} className="solverKeyboardRow">
+                    {row.map((letter) => (
+                      <button
+                        key={letter}
+                        type="button"
+                        className="solverKey"
+                        onMouseDown={preventKeyboardFocusSteal}
+                        onClick={() => handleKeyboardLetter(letter)}
+                      >
+                        {letter}
+                      </button>
+                    ))}
+                    {rowIndex === KEYBOARD_ROWS.length - 1 ? (
+                      <button
+                        type="button"
+                        className="solverKey solverKeyWide"
+                        aria-label="Backspace"
+                        onMouseDown={preventKeyboardFocusSteal}
+                        onClick={handleKeyboardBackspace}
+                      >
+                        ⌫
+                      </button>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </div>
         )}
       </div>
