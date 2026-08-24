@@ -42,6 +42,33 @@ export function formatElapsedMs(ms: number): string {
 
 export { SOLVER_NAME_KEY };
 
+function progressKey(puzzleId: string) {
+  return `dct-crosswords:progress:${puzzleId}`;
+}
+
+function loadProgress(
+  puzzleId: string,
+  cellCount: number,
+): { filled: string[]; startAtMs: number } | null {
+  try {
+    const raw = localStorage.getItem(progressKey(puzzleId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { filled?: unknown; startAtMs?: unknown };
+    if (!Array.isArray(parsed.filled) || parsed.filled.length !== cellCount) return null;
+    if (!parsed.filled.every((c) => typeof c === 'string')) return null;
+    if (
+      typeof parsed.startAtMs !== 'number' ||
+      !Number.isFinite(parsed.startAtMs) ||
+      parsed.startAtMs <= 0
+    ) {
+      return null;
+    }
+    return { filled: parsed.filled as string[], startAtMs: parsed.startAtMs };
+  } catch {
+    return null;
+  }
+}
+
 type Props = {
   puzzle: Puzzle;
   solverName: string;
@@ -49,6 +76,7 @@ type Props = {
 
 export function CrosswordPlayer({ puzzle, solverName }: Props) {
   const size = puzzle.size;
+  const cellCount = size * size;
   const computed = useMemo(() => computeEntries(puzzle.solutionGrid), [puzzle.id]);
   const solutionChars = useMemo(() => puzzle.solutionGrid.flatMap((r) => r.split('')), [puzzle.solutionGrid]);
 
@@ -60,25 +88,12 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     return set;
   }, [solutionChars]);
 
-  const [filled, setFilled] = useState<string[]>(() => Array.from({ length: size * size }, () => ''));
+  const [filled, setFilled] = useState<string[]>(() => {
+    const saved = loadProgress(puzzle.id, cellCount);
+    return saved?.filled ?? Array.from({ length: cellCount }, () => '');
+  });
 
   const submittedRef = useRef(false);
-
-  useEffect(() => {
-    setFilled(Array.from({ length: size * size }, () => ''));
-    setActiveCellIndex(null);
-    setActiveDirection('across');
-    setActiveEntryNumber(null);
-    setStartAtMs(Date.now());
-    setSolved(false);
-    setElapsedMs(null);
-    setTickNowMs(Date.now());
-    setLeaderboard([]);
-    setUserRank(null);
-    setAttemptId(null);
-    setSubmitError(null);
-    submittedRef.current = false;
-  }, [puzzle.id, size]);
 
   const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
   const clueRowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -98,7 +113,10 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     return new Set(activeEntry.cells.map((c) => idxOf(size, c.row, c.col)));
   }, [activeEntry, size]);
 
-  const [startAtMs, setStartAtMs] = useState(() => Date.now());
+  const [startAtMs, setStartAtMs] = useState(() => {
+    const saved = loadProgress(puzzle.id, cellCount);
+    return saved?.startAtMs ?? Date.now();
+  });
   const [tickNowMs, setTickNowMs] = useState(() => Date.now());
   const [elapsedMs, setElapsedMs] = useState<number | null>(null);
   const [solved, setSolved] = useState(false);
@@ -110,6 +128,31 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
   const [resultsLoading, setResultsLoading] = useState(false);
 
   const [bestTimeMs, setBestTimeMs] = useState<number | null>(null);
+
+  useEffect(() => {
+    const saved = loadProgress(puzzle.id, cellCount);
+    setFilled(saved?.filled ?? Array.from({ length: cellCount }, () => ''));
+    setActiveCellIndex(null);
+    setActiveDirection('across');
+    setActiveEntryNumber(null);
+    setStartAtMs(saved?.startAtMs ?? Date.now());
+    setSolved(false);
+    setElapsedMs(null);
+    setTickNowMs(Date.now());
+    setLeaderboard([]);
+    setUserRank(null);
+    setAttemptId(null);
+    setSubmitError(null);
+    submittedRef.current = false;
+  }, [puzzle.id, cellCount]);
+
+  useEffect(() => {
+    if (solved) return;
+    localStorage.setItem(
+      progressKey(puzzle.id),
+      JSON.stringify({ filled, startAtMs }),
+    );
+  }, [filled, startAtMs, puzzle.id, solved]);
 
   useEffect(() => {
     const key = `dct-crosswords:bestTime:${puzzle.id}`;
@@ -371,6 +414,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     setSolved(true);
     setElapsedMs(elapsed);
     setTickNowMs(Date.now());
+    localStorage.removeItem(progressKey(puzzle.id));
 
     const key = `dct-crosswords:bestTime:${puzzle.id}`;
     const prevRaw = localStorage.getItem(key);

@@ -178,7 +178,7 @@ Scope: `styles.css` only.
 
 ---
 
-## T039 — [TODO] Persist solver progress (filled letters + elapsed time) across a page refresh
+## T039 — [READY FOR REVIEW] Persist solver progress (filled letters + elapsed time) across a page refresh
 
 Right now `CrosswordPlayer.tsx`'s puzzle-reset `useEffect` (keyed on `[puzzle.id, size]`) unconditionally blanks `filled` and resets `startAtMs` to `Date.now()` every time the component mounts — which includes a plain page refresh, not just navigating to a different puzzle. A solver who refreshes mid-solve loses every letter they've typed and the timer restarts from zero. Fix with `localStorage`, matching the existing per-puzzle persistence pattern already used for `bestTimeMs` (`dct-crosswords:bestTime:${puzzle.id}`) — same idea, new key.
 
@@ -195,3 +195,5 @@ Right now `CrosswordPlayer.tsx`'s puzzle-reset `useEffect` (keyed on `[puzzle.id
 **Verify:** type several letters into a puzzle, note the elapsed time, refresh the page — confirm the same letters are still there and the timer continues climbing from roughly where it left off rather than resetting to 0:00. Solve the puzzle fully and confirm it submits to the leaderboard exactly once (check for a duplicate entry). Refresh again after solving and confirm a completely fresh, blank grid appears — not the solved state being restored. Also sanity-check switching between two *different* puzzles (e.g. via two browser tabs, or navigating away and back) still each keep their own independent saved progress, not overwriting each other.
 
 Scope: `CrosswordPlayer.tsx` only.
+
+**Implementation notes:** Also seed `useState` initializers from the same validated progress blob so the first paint (and the save effect) don't briefly overwrite a good restore with a blank grid.
