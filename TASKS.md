@@ -147,3 +147,44 @@ Scope: `App.tsx`, `styles.css`.
 **Verify:** hovering the title shows an underline and a pointer cursor; clicking it navigates to the same edit view the Edit icon button already opens; the Edit icon button itself is untouched and still works exactly as before (this isn't replacing it, just adding a second way in).
 
 Scope: `App.tsx`, `styles.css`.
+
+---
+
+## T037 — [TODO] Tab/clue-click should land on the first *empty* cell of an entry, not always its literal start
+
+Confirmed from a live screenshot: solving "1D" in `CrosswordPlayer.tsx`, cells E and Q were already filled (from an earlier across entry crossing this one), leaving the rest of 1D blank. Tab-ing into 1D put the cursor on the entry's very first cell (E, already filled) instead of the first actually-empty cell — meaning the solver has to manually click past the filled cells every time, defeating the point of keyboard navigation.
+
+**Root cause**: `focusEntry(direction, entryNumber)` unconditionally targets `entry.start` —
+
+```tsx
+const focusEntry = (direction: Direction, entryNumber: number) => {
+  const entry = computed.entryByNumberDirection(direction, entryNumber);
+  if (!entry || solved) return;
+  const firstCell = idxOf(size, entry.start.row, entry.start.col);
+  setActiveDirection(direction);
+  setActiveEntryNumber(entryNumber);
+  setActiveCellIndex(firstCell);
+  focusCell(firstCell);
+};
+```
+
+**Fix**: find the first cell in the entry where `filled[idx]` is falsy, and target that instead — fall back to the entry's actual start only if every cell in it happens to be filled (shouldn't normally happen since T025 already makes `stepEntry` skip fully-filled entries when Tab-ing, but `focusEntry` is also called directly from clue clicks, which aren't gated by that skip logic, so keep the fallback):
+
+```tsx
+const focusEntry = (direction: Direction, entryNumber: number) => {
+  const entry = computed.entryByNumberDirection(direction, entryNumber);
+  if (!entry || solved) return;
+  const entryIndices = entry.cells.map((c) => idxOf(size, c.row, c.col));
+  const targetCell = entryIndices.find((idx) => !filled[idx]) ?? entryIndices[0]!;
+  setActiveDirection(direction);
+  setActiveEntryNumber(entryNumber);
+  setActiveCellIndex(targetCell);
+  focusCell(targetCell);
+};
+```
+
+**This deliberately fixes both Tab and direct clue-clicking, not just Tab** — `focusEntry` is the one shared function both paths already call, and landing on the first blank cell is the same correct behavior either way (standard crossword-app convention); there's no good reason for clicking "1D" in the clue list to behave differently from Tab-ing into it. Flagging this explicitly since the user's report was Tab-specific, but the fix is naturally shared.
+
+**Verify:** reproduce the exact scenario — fill part of a down entry via an across entry crossing it (like the CLYDE example), then Tab into that down entry and confirm the cursor lands on the first blank cell, not the first cell overall. Click the same entry's clue in the DOWN list directly and confirm the same landing behavior. Confirm a completely empty entry still lands on its actual first cell (unchanged from today). Confirm Shift+Tab (backward) still works sensibly landing on the same first-empty-cell logic when arriving at an entry from the other direction.
+
+Scope: `CrosswordPlayer.tsx` only.
