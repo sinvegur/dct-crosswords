@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { formatElapsedMs } from '@/crossword/CrosswordPlayer';
-import type { Puzzle15 } from '@/crossword/types';
+import type { Puzzle } from '@/crossword/types';
 import { getLeaderboard, type LeaderboardEntry } from '@/lib/storage';
 
 type Props = {
   open: boolean;
-  puzzle: Puzzle15 | null;
+  puzzle: Puzzle | null;
   onClose: () => void;
 };
 

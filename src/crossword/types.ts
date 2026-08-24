@@ -4,12 +4,13 @@ export const SIZE_15 = 15 as const;
 
 export type PuzzleStatus = 'draft' | 'published';
 
-export type Puzzle15 = {
+export type Puzzle = {
   id: string;
   slug: string;
   status: PuzzleStatus;
   title: string;
-  // 15 rows, each 15 chars.
+  size: number;
+  // `size` rows, each `size` chars.
   // Use '#' for blocks, and any single letter (including Turkish letters) for answer cells.
   solutionGrid: string[];
   clues: {

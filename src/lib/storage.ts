@@ -1,4 +1,4 @@
-import type { Puzzle15, PuzzleStatus } from '@/crossword/types';
+import type { Puzzle, PuzzleStatus } from '@/crossword/types';
 import { supabase } from '@/lib/supabaseClient';
 
 type PuzzleRow = {
@@ -6,17 +6,18 @@ type PuzzleRow = {
   slug: string;
   title: string;
   solution_grid: string[];
-  clues: Puzzle15['clues'];
+  clues: Puzzle['clues'];
   status: PuzzleStatus;
   created_at: string;
 };
 
-function rowToPuzzle(row: PuzzleRow): Puzzle15 {
+function rowToPuzzle(row: PuzzleRow): Puzzle {
   return {
     id: row.id,
     slug: row.slug,
     status: row.status,
     title: row.title,
+    size: row.solution_grid.length,
     solutionGrid: row.solution_grid,
     clues: row.clues,
     meta: {
@@ -70,7 +71,7 @@ async function allocateSlug(base: string): Promise<string> {
   return `${base}-${Date.now().toString(36)}`;
 }
 
-export async function listPuzzles(): Promise<Puzzle15[]> {
+export async function listPuzzles(): Promise<Puzzle[]> {
   const { data, error } = await supabase
     .from('puzzles')
     .select('id, slug, title, solution_grid, clues, status, created_at')
@@ -80,7 +81,7 @@ export async function listPuzzles(): Promise<Puzzle15[]> {
   return (data as PuzzleRow[] | null)?.map(rowToPuzzle) ?? [];
 }
 
-export async function getPuzzle(id: string): Promise<Puzzle15 | undefined> {
+export async function getPuzzle(id: string): Promise<Puzzle | undefined> {
   const { data, error } = await supabase
     .from('puzzles')
     .select('id, slug, title, solution_grid, clues, status, created_at')
@@ -91,7 +92,7 @@ export async function getPuzzle(id: string): Promise<Puzzle15 | undefined> {
   return data ? rowToPuzzle(data as PuzzleRow) : undefined;
 }
 
-export async function getPuzzleBySlug(slug: string): Promise<Puzzle15 | undefined> {
+export async function getPuzzleBySlug(slug: string): Promise<Puzzle | undefined> {
   const { data, error } = await supabase
     .from('puzzles')
     .select('id, slug, title, solution_grid, clues, status, created_at')
@@ -102,7 +103,7 @@ export async function getPuzzleBySlug(slug: string): Promise<Puzzle15 | undefine
   return data ? rowToPuzzle(data as PuzzleRow) : undefined;
 }
 
-export async function savePuzzle(puzzle: Puzzle15): Promise<Puzzle15> {
+export async function savePuzzle(puzzle: Puzzle): Promise<Puzzle> {
   const payload = {
     title: puzzle.title,
     solution_grid: puzzle.solutionGrid,

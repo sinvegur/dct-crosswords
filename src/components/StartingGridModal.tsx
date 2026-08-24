@@ -1,18 +1,29 @@
 import { useEffect, useState } from 'react';
 import { GridPreview } from '@/components/GridPreview';
-import { TEMPLATES_15, type StartingGridId, type Template15 } from '@/data/templates';
+import {
+  PUZZLE_SIZES,
+  templatesForSize,
+  type PuzzleSize,
+  type StartingGridId,
+  type Template,
+} from '@/data/templates';
 
 type Props = {
   open: boolean;
   onClose: () => void;
-  onCreate: (template: Template15) => void;
+  onCreate: (template: Template) => void;
 };
 
 export function StartingGridModal({ open, onClose, onCreate }: Props) {
+  const [size, setSize] = useState<PuzzleSize>(15);
   const [selectedId, setSelectedId] = useState<StartingGridId>('classic');
+
+  const templates = templatesForSize(size);
+  const selected = templates.find((t) => t.id === selectedId) ?? templates[0]!;
 
   useEffect(() => {
     if (!open) return;
+    setSize(15);
     setSelectedId('classic');
 
     const onKey = (e: KeyboardEvent) => {
@@ -23,8 +34,6 @@ export function StartingGridModal({ open, onClose, onCreate }: Props) {
   }, [open, onClose]);
 
   if (!open) return null;
-
-  const selected = TEMPLATES_15.find((t) => t.id === selectedId) ?? TEMPLATES_15[0]!;
 
   return (
     <div className="modalOverlay" role="presentation" onClick={onClose}>
@@ -44,12 +53,30 @@ export function StartingGridModal({ open, onClose, onCreate }: Props) {
           </button>
         </div>
 
+        <div className="sizePicker" role="group" aria-label="Puzzle size">
+          {PUZZLE_SIZES.map((option) => (
+            <button
+              key={option}
+              type="button"
+              className={`btn ${size === option ? 'btnPrimary' : ''}`}
+              aria-pressed={size === option}
+              onClick={() => {
+                setSize(option);
+                const nextTemplates = templatesForSize(option);
+                setSelectedId(nextTemplates[0]!.id);
+              }}
+            >
+              {option}×{option}
+            </button>
+          ))}
+        </div>
+
         <div className="templateCards">
-          {TEMPLATES_15.map((t) => {
+          {templates.map((t) => {
             const isSelected = t.id === selectedId;
             return (
               <button
-                key={t.id}
+                key={`${t.size}-${t.id}`}
                 type="button"
                 className={`templateCard ${isSelected ? 'isSelected' : ''}`}
                 onClick={() => setSelectedId(t.id)}

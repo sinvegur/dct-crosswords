@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Puzzle15 } from './types';
-import { SIZE_15, type Direction, type Entry, computeEntries15 } from './engine';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import type { Puzzle } from './types';
+import { type Direction, type Entry, computeEntries } from './engine';
 import {
   getAttemptRank,
   getLeaderboard,
@@ -10,12 +10,12 @@ import {
 
 const SOLVER_NAME_KEY = 'dct-crosswords:solverName';
 
-function idxOf(row: number, col: number) {
-  return row * SIZE_15 + col;
+function idxOf(size: number, row: number, col: number) {
+  return row * size + col;
 }
 
-function posOf(index: number) {
-  return { row: Math.floor(index / SIZE_15), col: index % SIZE_15 };
+function posOf(size: number, index: number) {
+  return { row: Math.floor(index / size), col: index % size };
 }
 
 function keyOf(row: number, col: number) {
@@ -43,12 +43,13 @@ export function formatElapsedMs(ms: number): string {
 export { SOLVER_NAME_KEY };
 
 type Props = {
-  puzzle: Puzzle15;
+  puzzle: Puzzle;
   solverName: string;
 };
 
 export function CrosswordPlayer({ puzzle, solverName }: Props) {
-  const computed = useMemo(() => computeEntries15(puzzle.solutionGrid), [puzzle.id]);
+  const size = puzzle.size;
+  const computed = useMemo(() => computeEntries(puzzle.solutionGrid), [puzzle.id]);
   const solutionChars = useMemo(() => puzzle.solutionGrid.flatMap((r) => r.split('')), [puzzle.solutionGrid]);
 
   const blockSet = useMemo(() => {
@@ -59,12 +60,12 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     return set;
   }, [solutionChars]);
 
-  const [filled, setFilled] = useState<string[]>(() => Array.from({ length: SIZE_15 * SIZE_15 }, () => ''));
+  const [filled, setFilled] = useState<string[]>(() => Array.from({ length: size * size }, () => ''));
 
   const submittedRef = useRef(false);
 
   useEffect(() => {
-    setFilled(Array.from({ length: SIZE_15 * SIZE_15 }, () => ''));
+    setFilled(Array.from({ length: size * size }, () => ''));
     setActiveCellIndex(null);
     setActiveDirection('across');
     setActiveEntryNumber(null);
@@ -77,7 +78,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     setAttemptId(null);
     setSubmitError(null);
     submittedRef.current = false;
-  }, [puzzle.id]);
+  }, [puzzle.id, size]);
 
   const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
   const clueRowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -94,8 +95,8 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
 
   const activeEntryCellIndices = useMemo(() => {
     if (!activeEntry) return new Set<number>();
-    return new Set(activeEntry.cells.map((c) => idxOf(c.row, c.col)));
-  }, [activeEntry]);
+    return new Set(activeEntry.cells.map((c) => idxOf(size, c.row, c.col)));
+  }, [activeEntry, size]);
 
   const [startAtMs, setStartAtMs] = useState(() => Date.now());
   const [tickNowMs, setTickNowMs] = useState(() => Date.now());
@@ -189,7 +190,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
 
   const handlePickCell = (cellIndex: number, opts?: { fromClick?: boolean }) => {
     if (blockSet.has(cellIndex)) return;
-    const { row, col } = posOf(cellIndex);
+    const { row, col } = posOf(size, cellIndex);
 
     const acrossNum = computed.acrossEntryNumberByCell.get(keyOf(row, col));
     const downNum = computed.downEntryNumberByCell.get(keyOf(row, col));
@@ -231,7 +232,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
   };
 
   const resolveEntryAtCell = (cellIndex: number, direction: Direction): Entry | undefined => {
-    const { row, col } = posOf(cellIndex);
+    const { row, col } = posOf(size, cellIndex);
     const acrossNum = computed.acrossEntryNumberByCell.get(keyOf(row, col));
     const downNum = computed.downEntryNumberByCell.get(keyOf(row, col));
 
@@ -255,7 +256,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
   };
 
   const moveInResolvedEntry = (entry: Entry, from: number, delta: 1 | -1) => {
-    const indices = entry.cells.map((c) => idxOf(c.row, c.col));
+    const indices = entry.cells.map((c) => idxOf(size, c.row, c.col));
     const pos = indices.indexOf(from);
     if (pos === -1) return;
     const next = indices[pos + delta];
@@ -270,13 +271,13 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     let entry = resolveEntryAtCell(cellIndex, activeDirection);
     if (!entry) return;
 
-    let indices = entry.cells.map((c) => idxOf(c.row, c.col));
+    let indices = entry.cells.map((c) => idxOf(size, c.row, c.col));
     let pos = indices.indexOf(cellIndex);
 
     if (pos === -1) {
       entry = resolveEntryAtCell(cellIndex, activeDirection === 'across' ? 'down' : 'across');
       if (!entry) return;
-      indices = entry.cells.map((c) => idxOf(c.row, c.col));
+      indices = entry.cells.map((c) => idxOf(size, c.row, c.col));
       pos = indices.indexOf(cellIndex);
       if (pos === -1) return;
       handlePickCell(cellIndex);
@@ -296,7 +297,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
   const focusEntry = (direction: Direction, entryNumber: number) => {
     const entry = computed.entryByNumberDirection(direction, entryNumber);
     if (!entry || solved) return;
-    const firstCell = idxOf(entry.start.row, entry.start.col);
+    const firstCell = idxOf(size, entry.start.row, entry.start.col);
     setActiveDirection(direction);
     setActiveEntryNumber(entryNumber);
     setActiveCellIndex(firstCell);
@@ -304,7 +305,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
   };
 
   const isEntryFilled = (entry: Entry) =>
-    entry.cells.every((c) => Boolean(filled[idxOf(c.row, c.col)]));
+    entry.cells.every((c) => Boolean(filled[idxOf(size, c.row, c.col)]));
 
   const stepEntry = (delta: 1 | -1) => {
     const combined = [
@@ -344,7 +345,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
 
   const toggleDirectionForActiveCell = () => {
     if (activeCellIndex == null) return;
-    const { row, col } = posOf(activeCellIndex);
+    const { row, col } = posOf(size, activeCellIndex);
     const acrossNum = computed.acrossEntryNumberByCell.get(keyOf(row, col));
     const downNum = computed.downEntryNumberByCell.get(keyOf(row, col));
 
@@ -585,6 +586,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
             <div
               className="grid"
               tabIndex={0}
+              style={{ '--grid-size': size } as CSSProperties}
               onKeyDown={(e) => {
                 if (e.code === 'Space') {
                   e.preventDefault();
@@ -592,8 +594,8 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
                 }
               }}
             >
-              {Array.from({ length: SIZE_15 * SIZE_15 }, (_, cellIndex) => {
-                const { row, col } = posOf(cellIndex);
+              {Array.from({ length: size * size }, (_, cellIndex) => {
+                const { row, col } = posOf(size, cellIndex);
                 const char = solutionChars[cellIndex];
                 const numAtCell = computed.cellNumber[row][col];
                 if (char === '#') {

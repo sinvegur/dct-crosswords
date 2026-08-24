@@ -21,8 +21,8 @@ import {
   RequireAuth,
   useAuth,
 } from '@/components/CreatorLogin';
-import type { Puzzle15 } from '@/crossword/types';
-import type { Template15 } from '@/data/templates';
+import type { Puzzle } from '@/crossword/types';
+import type { Template } from '@/data/templates';
 import {
   deletePuzzle,
   getPuzzle,
@@ -39,7 +39,7 @@ function errorMessage(err: unknown): string {
   return String(err);
 }
 
-function formatHumanPuzzleListDate(iso: string, status: Puzzle15['status']): string {
+function formatHumanPuzzleListDate(iso: string, status: Puzzle['status']): string {
   const date = new Date(iso);
   let formatted: string;
   try {
@@ -66,10 +66,10 @@ function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const { session, signOut } = useAuth();
-  const [puzzles, setPuzzles] = useState<Puzzle15[]>([]);
+  const [puzzles, setPuzzles] = useState<Puzzle[]>([]);
   const [listLoading, setListLoading] = useState(true);
   const [listError, setListError] = useState<string | null>(null);
-  const [startingTemplate, setStartingTemplate] = useState<Template15 | undefined>(undefined);
+  const [startingTemplate, setStartingTemplate] = useState<Template | undefined>(undefined);
   const [gridModalOpen, setGridModalOpen] = useState(false);
   const [publishSuccess, setPublishSuccess] = useState<{
     title: string;
@@ -126,7 +126,7 @@ function AppShell() {
     });
   }, [navigate]);
 
-  const handleSaved = async (puzzle: Puzzle15, action: 'draft' | 'published') => {
+  const handleSaved = async (puzzle: Puzzle, action: 'draft' | 'published') => {
     try {
       const saved = await savePuzzle(puzzle);
       await refresh();
@@ -278,7 +278,7 @@ function HomePage({
   onRefresh,
   onNewPuzzle,
 }: {
-  puzzles: Puzzle15[];
+  puzzles: Puzzle[];
   loading: boolean;
   error: string | null;
   onRefresh: () => void;
@@ -286,8 +286,8 @@ function HomePage({
 }) {
   const navigate = useNavigate();
   const [actionError, setActionError] = useState<string | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<Puzzle15 | null>(null);
-  const [leaderboardTarget, setLeaderboardTarget] = useState<Puzzle15 | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Puzzle | null>(null);
+  const [leaderboardTarget, setLeaderboardTarget] = useState<Puzzle | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   const confirmDelete = async () => {
@@ -431,11 +431,11 @@ function DesignNewPage({
   onCancel,
   onSaved,
 }: {
-  startingTemplate: Template15 | undefined;
+  startingTemplate: Template | undefined;
   setGridModalOpen: (open: boolean) => void;
-  setStartingTemplate: (t: Template15 | undefined) => void;
+  setStartingTemplate: (t: Template | undefined) => void;
   onCancel: () => void;
-  onSaved: (puzzle: Puzzle15, action: 'draft' | 'published') => void | Promise<void>;
+  onSaved: (puzzle: Puzzle, action: 'draft' | 'published') => void | Promise<void>;
 }) {
   // Open the template picker once when entering new-design without a template.
   // Do NOT depend on startingTemplate/gridModalOpen — clearing the template on
@@ -453,7 +453,7 @@ function DesignNewPage({
 
   return (
     <PuzzleDesigner
-      key={startingTemplate.id}
+      key={`${startingTemplate.size}-${startingTemplate.id}`}
       startingTemplate={startingTemplate}
       onCancel={() => {
         setStartingTemplate(undefined);
@@ -470,14 +470,14 @@ function DesignEditPage({
   onCancel,
   onSaved,
 }: {
-  puzzles: Puzzle15[];
+  puzzles: Puzzle[];
   listLoading: boolean;
   onCancel: () => void;
-  onSaved: (puzzle: Puzzle15, action: 'draft' | 'published') => void | Promise<void>;
+  onSaved: (puzzle: Puzzle, action: 'draft' | 'published') => void | Promise<void>;
 }) {
   const { id } = useParams<{ id: string }>();
   const fromList = useMemo(() => puzzles.find((p) => p.id === id), [puzzles, id]);
-  const [fetched, setFetched] = useState<Puzzle15 | undefined>(undefined);
+  const [fetched, setFetched] = useState<Puzzle | undefined>(undefined);
   const [fetching, setFetching] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
@@ -538,7 +538,7 @@ function DesignEditPage({
 function PlayPage() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
-  const [playing, setPlaying] = useState<Puzzle15 | undefined>(undefined);
+  const [playing, setPlaying] = useState<Puzzle | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [solverName, setSolverName] = useState<string | null>(() => {
