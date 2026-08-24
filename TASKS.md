@@ -147,3 +147,24 @@ Scope: `App.tsx`, `styles.css`.
 **Verify:** hovering the title shows an underline and a pointer cursor; clicking it navigates to the same edit view the Edit icon button already opens; the Edit icon button itself is untouched and still works exactly as before (this isn't replacing it, just adding a second way in).
 
 Scope: `App.tsx`, `styles.css`.
+
+---
+
+## T038 — [TODO] Stop the grid from shifting up/down when switching between short and long clues
+
+Verified live: the blue clue bar (`.clueBarText`, `styles.css`) has no reserved height, so it's exactly as tall as its current clue's text needs — one line for a short clue, two (or more) for a long one. Since the grid sits directly below the bar, switching from a short clue to a long one grows the bar and visibly pushes the grid down (and back up again switching back). Measured directly: 39px bar / grid top at 123px for a short clue vs. 58px bar / grid top at 142px for a long one that wraps to two lines — a 19px jump every time.
+
+**Fix — verified live, one CSS property:**
+```css
+.clueBarText {
+  /* existing declarations unchanged */
+  min-height: calc(1.35em * 2);
+}
+```
+`1.35` matches `.clueBarText`'s own existing `line-height`, so this reserves exactly two lines' worth of height regardless of font-size, using `em` rather than a hardcoded px value so it stays correct if the font-size ever changes later. A one-line clue now sits in a bar with empty space below it (matching the two-line bar's height); a two-line clue fills that same reserved space exactly; the grid's position no longer moves between them.
+
+**Deliberately not capped at two lines — `min-height`, not `height` or `max-height`.** Verified a genuinely very long clue (long enough to wrap to 3-4 lines) still displays in full, growing the bar further rather than clipping — two lines is the *reserved minimum* for the common case, not a hard ceiling. In that rare case the grid will still shift a little, which is fine — this fix is about eliminating the shift for the everyday short-clue-vs-long-clue case, not guaranteeing zero movement in every conceivable case.
+
+**Verify:** click through several clues of differing lengths (some one line, some two) and confirm the grid's vertical position stays completely fixed. Find or write a clue long enough to wrap to three-plus lines and confirm it still displays in full, uncut, even though the grid does shift slightly for that case. Confirm a one-line clue now has visible empty space below it in the bar rather than the bar hugging the text tightly.
+
+Scope: `styles.css` only.
