@@ -147,8 +147,9 @@ textarea {
 .clueBarBody {
   min-width: 0;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 16px;
+  min-height: calc(14px * 1.35 * 2);
 }
 
 .clueBarLabel {
