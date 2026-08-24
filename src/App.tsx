@@ -39,6 +39,29 @@ function errorMessage(err: unknown): string {
   return String(err);
 }
 
+function formatHumanPuzzleListDate(iso: string, status: Puzzle15['status']): string {
+  const date = new Date(iso);
+  let formatted: string;
+  try {
+    // Some environments don't support `dateStyle`/`timeStyle` in `toLocaleString`.
+    formatted = date.toLocaleString('en-US', {
+      dateStyle: 'long',
+      timeStyle: 'short',
+      timeZoneName: 'short',
+    });
+  } catch {
+    formatted = date.toLocaleString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  }
+
+  return status === 'published' ? `Published on ${formatted}` : `Created on ${formatted}`;
+}
+
 function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -325,7 +348,7 @@ function HomePage({
                 </div>
                 <div className="subtle">
                   {p.meta?.createdAtISO
-                    ? new Date(p.meta.createdAtISO).toLocaleString('en-US')
+                    ? formatHumanPuzzleListDate(p.meta.createdAtISO, p.status)
                     : p.slug}
                 </div>
               </div>

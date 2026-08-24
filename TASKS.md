@@ -118,19 +118,27 @@ Scope: `CrosswordPlayer.tsx` only.
 
 ---
 
-## T031 — [TODO] Puzzle list: human-readable date instead of the raw mechanical timestamp
+## T032 — [TODO] Creator leaderboard modal (`PuzzleLeaderboardModal.tsx`): drop the redundant title/subtitle, drop the completed-at column, make rows more compact around the time
 
-`App.tsx`'s `HomePage` currently shows each puzzle's date as `new Date(p.meta.createdAtISO).toLocaleString('en-US')`, which renders as something like `8/24/2026, 9:27:39 AM` — the user finds this too mechanical and wants something like `Published on August 24, 2026 at 9:27 AM (CET)`.
+Two cosmetic changes to the modal added in T030, from live user feedback on how it actually looks.
 
-**One nuance worth getting right — flagging it rather than copying the example literally:** the underlying field is `createdAtISO` (creation time), not a true "published at" timestamp — there's no separate `published_at` column, so a draft that gets edited and published later still only has its original creation time. The user's example phrasing ("Published on...") reads naturally for an already-published puzzle, but would be misleading on a still-draft row. **Make the leading word conditional on `p.status`**: `"Published on ..."` when `p.status === 'published'`, `"Created on ..."` (or similarly honest wording, your call) when it's still a draft. Don't just hardcode "Published on" for every row.
+**1. Replace the generic "Leaderboard" heading with the puzzle's own title, and drop the now-redundant subtitle line underneath it.** Currently the modal header is a static `<h2 className="modalTitle">Leaderboard</h2>`, followed by a separate `<p className="subtle">{puzzle.title}</p>` block right below it. Since the button that opens this modal is already labeled/iconed "Leaderboard" (T030), restating that word as the modal's own heading is redundant — the puzzle's *name* is the actually-useful piece of context here. Change the `<h2>` to render `{puzzle.title}` directly, and delete the separate subtitle `<p>` entirely. Keep `id="puzzle-leaderboard-title"` and `aria-labelledby` wired the same way — the puzzle title is still a perfectly good accessible name for the dialog.
 
-**Formatting**: use `Intl`'s built-in style options rather than hand-building a string — `date.toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' })` already produces almost exactly the target format (`August 24, 2026 at 9:27 AM`) with no manual string assembly needed. If you want to also include the timezone abbreviation, add `timeZoneName: 'short'` to the same options object — note the exact output (e.g. whether it lands as `(CET)` in parens or `GMT+2` appended plainly) depends on the browser's `Intl` implementation and isn't worth hand-crafting further; whatever `Intl` naturally produces with that option is fine, don't over-engineer a manual parens-wrapping step for this.
+**2. Stop showing when each attempt was completed, and use the reclaimed space to make the time more prominent — but don't touch the shared leaderboard CSS classes.** Currently each row shows rank, name, time, and a `completedAtISO` date (`.leaderboardDate`) — the user doesn't want that last piece visible here. **Important: keep fetching `completedAtISO` exactly as-is in `storage.ts`/`getLeaderboard()` — this is a display-only change, not a data change.** Just stop rendering the `<span className="leaderboardDate">...</span>` in this component.
+   - `.leaderboardRow`, `.leaderboardRank`, `.leaderboardName`, and `.leaderboardTime` are **shared** with the solver's own "Solved!" results screen in `CrosswordPlayer.tsx` (confirmed — same classes, same shared rules in `styles.css`) — don't restyle those base rules directly, that would also change how the solver's own leaderboard looks, which isn't part of this ask. Instead, add an additional class to this modal's `<ol>` (e.g. `className="leaderboardList puzzleLeaderboardList"`) and scope the new styling under that, e.g.:
+     ```css
+     .puzzleLeaderboardList .leaderboardRow {
+       padding: 8px 14px; /* tighter than the shared 10px 14px, since there's one less column now */
+     }
+     .puzzleLeaderboardList .leaderboardTime {
+       font-size: 18px;
+       font-weight: 700;
+     }
+     ```
+     (exact values are a judgment call, not a hard requirement — the goal is visibly more compact rows with the time reading as the clear focal point, not pixel-perfect matching of these numbers.)
+   - Once `.leaderboardDate` has no remaining JSX usage anywhere (confirmed today it's only ever used in this one modal), remove its now-orphaned CSS rule from `styles.css` too rather than leaving dead styling behind.
 
-Small helper function is fine here (e.g. `formatHumanDate(iso: string, status: PuzzleStatus): string` local to `App.tsx`, since this is the only place it's used right now) rather than inlining the conditional+formatting logic directly in the JSX.
+**Verify:** modal header shows the puzzle's actual title instead of the word "Leaderboard," with no separate subtitle line underneath. Each row shows rank/name/time only — no date anywhere. Confirm the solver's own "Solved!" results screen (`CrosswordPlayer.tsx`, finish a puzzle via the T029 "Solve it" button to check quickly) still looks exactly as it did before — same row height/spacing, same time styling — proving the shared classes weren't touched.
 
-**Scope check**: this task is specifically about the puzzle list row (`HomePage`) only, per what was asked. The Leaderboard modal added in T030 shows `completedAtISO` with the same generic `toLocaleString('en-US')` call and likely has the same "too mechanical" feel, but that wasn't part of this ask — leave it untouched. (Worth a follow-up task later if the user wants the same treatment there, but don't fold it into this one.)
-
-**Verify:** on the puzzle list, a published puzzle shows something like "Published on August 24, 2026 at 9:27 AM" (plus timezone if `Intl` provides it); a draft puzzle shows the same style but with different leading wording, not "Published." Confirm the date is still derived from real data (not a hardcoded string) by checking it changes correctly across a couple of different puzzles with different creation times.
-
-Scope: `App.tsx` only.
+Scope: `src/components/PuzzleLeaderboardModal.tsx`, `styles.css`.
 
