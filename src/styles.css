@@ -362,6 +362,14 @@ textarea {
   color: #111827;
 }
 
+/* The cell already shows its own active/current state via background color;
+   the browser's native text-selection highlight (triggered by focusCell's
+   el.select(), which lets typing overwrite an existing letter) is redundant
+   and reads as an odd extra box around the glyph. Suppress it. */
+.cell input::selection {
+  background: transparent;
+}
+
 .cellNumber {
   position: absolute;
   top: clamp(1px, 5cqi, 8px);

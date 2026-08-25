@@ -475,6 +475,22 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     setActiveCellIndex(next);
   };
 
+  // Plain one-step move within an entry: no skipping over filled cells, no
+  // auto-jump to the next entry at the boundary. Used when overwriting a
+  // cell that was already filled (correcting an answer), where the smarter
+  // forward-progress behavior of moveInResolvedEntry would blow through the
+  // rest of an already-fully-filled entry after a single keystroke.
+  const moveOneWithinEntry = (entry: Entry, from: number, delta: 1 | -1) => {
+    const indices = entry.cells.map((c) => idxOf(size, c.row, c.col));
+    const pos = indices.indexOf(from);
+    if (pos === -1) return;
+    const next = indices[pos + delta];
+    if (next == null) return;
+    handlePickCell(next);
+    focusCell(next);
+    setActiveCellIndex(next);
+  };
+
   const jumpToPreviousEntryEnd = (direction: Direction, entryNumber: number) => {
     const combined = [
       ...computed.entriesAcross.map((entry) => ({ direction: 'across' as const, entry })),
@@ -649,6 +665,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     if (blockSet.has(cellIndex)) return;
     handlePickCell(cellIndex);
 
+    const wasEmpty = !filled[cellIndex];
     const letter = normalizeLetter(raw);
     const next = filled.slice();
 
@@ -666,7 +683,18 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     const entry = resolveEntryAtCell(cellIndex, activeDirection);
     if (!entry) return;
 
-    moveInResolvedEntry(entry, cellIndex, 1);
+    // Skipping over already-filled cells (and auto-jumping to the next entry
+    // once this one's full) only makes sense when typing forward through new
+    // progress. If the cell just typed into was already filled, this is a
+    // correction/review pass (e.g. the whole grid is filled but wrong) - in
+    // that mode, jumping past other filled cells or out of the entry entirely
+    // after a single keystroke is surprising, not helpful. Just move one cell
+    // over instead.
+    if (wasEmpty) {
+      moveInResolvedEntry(entry, cellIndex, 1);
+    } else {
+      moveOneWithinEntry(entry, cellIndex, 1);
+    }
   };
 
   const handleKeyboardBackspace = () => {
