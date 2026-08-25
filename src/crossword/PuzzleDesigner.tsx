@@ -857,6 +857,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
         </div>
 
         <div className="gridWrap">
+          <div className="designerGridSlot">
           <div
             className={`grid ${editMode === 'block' ? 'gridBlockMode' : ''}`}
             style={{ '--grid-size': size } as CSSProperties}
@@ -923,6 +924,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
                 </div>
               );
             })}
+          </div>
           </div>
 
           <div className="statusBar">
