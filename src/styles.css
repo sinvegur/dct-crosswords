@@ -749,8 +749,8 @@ textarea {
   .clueBar {
     order: 2;
     margin-bottom: 0;
-    margin-top: 4px;
-    padding: 6px 10px;
+    margin-top: 14px;
+    padding: 8px 10px;
   }
 
   .clueBarBody {
@@ -763,18 +763,24 @@ textarea {
 
   .gridSlot {
     order: 1;
-    container-type: size;
+    flex: 0 0 auto;
+    container-type: inline-size;
+  }
+
+  .solverGridPanel .grid {
+    width: calc(100cqw - 24px);
+    height: calc(100cqw - 24px);
   }
 
   .solverKeyboard {
     order: 3;
+    flex-shrink: 0;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 8px;
     width: 100%;
-    flex-shrink: 0;
     box-sizing: border-box;
-    padding: 4px 2px 2px;
+    padding: 14px 2px 2px;
   }
 
   .solverKeyboardRow {
@@ -786,15 +792,15 @@ textarea {
   .solverKey {
     flex: 1 1 0;
     min-width: 0;
-    max-width: 34px;
-    height: 38px;
+    max-width: 42px;
+    height: 54px;
     padding: 0;
     border: 1px solid var(--border);
     border-radius: 6px;
     background: #ffffff;
     color: #111827;
     font-family: var(--font-grid);
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 700;
     cursor: pointer;
     user-select: none;
@@ -805,7 +811,7 @@ textarea {
   }
 
   .solverKeyWide {
-    max-width: 44px;
+    max-width: 50px;
     font-size: 13px;
   }
 
