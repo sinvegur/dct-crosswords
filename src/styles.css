@@ -297,8 +297,8 @@ textarea {
   width: 100%;
   aspect-ratio: 1 / 1;
   display: grid;
-  grid-template-columns: repeat(var(--grid-size, 15), 1fr);
-  grid-template-rows: repeat(var(--grid-size, 15), 1fr);
+  grid-template-columns: repeat(var(--grid-size, 15), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--grid-size, 15), minmax(0, 1fr));
   gap: 2px;
   background: transparent;
 }
@@ -1064,7 +1064,7 @@ textarea {
   width: 120px;
   height: 120px;
   display: grid;
-  grid-template-columns: repeat(var(--grid-size, 15), 1fr);
+  grid-template-columns: repeat(var(--grid-size, 15), minmax(0, 1fr));
   gap: 1px;
   background: #e5e7eb;
   border: 1px solid #d1d5db;
