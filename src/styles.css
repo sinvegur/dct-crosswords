@@ -728,6 +728,10 @@ textarea {
     margin-bottom: 6px;
   }
 
+  .headerSolverRoute {
+    display: none;
+  }
+
   .logoImg {
     height: 36px;
   }
@@ -738,7 +742,7 @@ textarea {
 
   .layout.layoutSolver {
     grid-template-columns: 1fr;
-    height: calc(100dvh - 88px);
+    height: auto;
     min-height: 0;
   }
 
@@ -747,7 +751,11 @@ textarea {
   }
 
   .solverGridPanel {
-    overflow-y: hidden;
+    container-type: normal;
+  }
+
+  .solverGridPanel .gridWrap {
+    flex-grow: 0;
   }
 
   .controlsRowCompact .solverTimer {

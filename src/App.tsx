@@ -149,7 +149,7 @@ function AppShell() {
 
   return (
     <div className="page">
-      <div className="header">
+      <div className={`header ${isSolverRoute ? 'headerSolverRoute' : ''}`}>
         {isSolverRoute ? (
           <img
             className="logoImg"
