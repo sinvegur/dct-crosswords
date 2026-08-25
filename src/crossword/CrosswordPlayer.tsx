@@ -460,24 +460,50 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     setActiveCellIndex(next);
   };
 
+  const jumpToPreviousEntryEnd = (direction: Direction, entryNumber: number) => {
+    const combined = [
+      ...computed.entriesAcross.map((entry) => ({ direction: 'across' as const, entry })),
+      ...computed.entriesDown.map((entry) => ({ direction: 'down' as const, entry })),
+    ];
+    const currentIdx = combined.findIndex(
+      (item) => item.direction === direction && item.entry.number === entryNumber,
+    );
+    if (currentIdx === -1) return;
+    const prevIdx = currentIdx === 0 ? combined.length - 1 : currentIdx - 1;
+    const target = combined[prevIdx]!;
+    const targetIndices = target.entry.cells.map((c) => idxOf(size, c.row, c.col));
+    const lastCell = targetIndices[targetIndices.length - 1]!;
+    setActiveDirection(target.direction);
+    setActiveEntryNumber(target.entry.number);
+    setActiveCellIndex(lastCell);
+    focusCell(lastCell);
+  };
+
   const backspaceEmptyCell = (cellIndex: number) => {
     handlePickCell(cellIndex);
-    let entry = resolveEntryAtCell(cellIndex, activeDirection);
+    let direction: Direction = activeDirection;
+    let entry = resolveEntryAtCell(cellIndex, direction);
     if (!entry) return;
+    direction = entry.direction;
 
     let indices = entry.cells.map((c) => idxOf(size, c.row, c.col));
     let pos = indices.indexOf(cellIndex);
 
     if (pos === -1) {
-      entry = resolveEntryAtCell(cellIndex, activeDirection === 'across' ? 'down' : 'across');
+      direction = direction === 'across' ? 'down' : 'across';
+      entry = resolveEntryAtCell(cellIndex, direction);
       if (!entry) return;
+      direction = entry.direction;
       indices = entry.cells.map((c) => idxOf(size, c.row, c.col));
       pos = indices.indexOf(cellIndex);
       if (pos === -1) return;
       handlePickCell(cellIndex);
     }
 
-    if (pos === 0) return;
+    if (pos === 0) {
+      jumpToPreviousEntryEnd(direction, entry.number);
+      return;
+    }
 
     const prev = indices[pos - 1]!;
     const nextFilled = filled.slice();
