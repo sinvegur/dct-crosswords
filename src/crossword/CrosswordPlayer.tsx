@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Puzzle } from './types';
 import { type Direction, type Entry, computeEntries } from './engine';
@@ -80,6 +80,73 @@ function SolverTimer({
     </div>
   );
 }
+
+// Returns a function with a stable identity that always calls the latest
+// `fn` passed in. Lets event handlers stay fresh (correct closures) while
+// letting memoized children (GridCell) treat the handler prop as unchanged
+// across renders, instead of busting memoization every render.
+function useStableCallback<Args extends unknown[]>(fn: (...args: Args) => void) {
+  const fnRef = useRef(fn);
+  useEffect(() => {
+    fnRef.current = fn;
+  });
+  return useCallback((...args: Args) => {
+    fnRef.current(...args);
+  }, []);
+}
+
+type GridCellProps = {
+  cellIndex: number;
+  value: string;
+  numAtCell: number | null;
+  isActiveCell: boolean;
+  isCurrentCell: boolean;
+  isMobile: boolean;
+  inputsRef: React.RefObject<Array<HTMLInputElement | null>>;
+  onMouseDownCell: (cellIndex: number) => void;
+  onPickCell: (cellIndex: number, opts?: { fromClick?: boolean }) => void;
+  onFocusCell: (cellIndex: number) => void;
+  onChangeCell: (cellIndex: number, raw: string) => void;
+  onKeyDownCell: (cellIndex: number, e: React.KeyboardEvent<HTMLInputElement>) => void;
+};
+
+const GridCell = memo(function GridCell({
+  cellIndex,
+  value,
+  numAtCell,
+  isActiveCell,
+  isCurrentCell,
+  isMobile,
+  inputsRef,
+  onMouseDownCell,
+  onPickCell,
+  onFocusCell,
+  onChangeCell,
+  onKeyDownCell,
+}: GridCellProps) {
+  return (
+    <div
+      className={`cell ${isActiveCell ? 'cellActive' : ''} ${isCurrentCell ? 'cellCurrent' : ''}`}
+      onMouseDown={() => onMouseDownCell(cellIndex)}
+      onClick={() => onPickCell(cellIndex, { fromClick: true })}
+    >
+      {numAtCell != null ? <div className="cellNumber">{numAtCell}</div> : null}
+      <input
+        ref={(el) => {
+          inputsRef.current[cellIndex] = el;
+        }}
+        value={value}
+        maxLength={1}
+        inputMode={isMobile ? 'none' : undefined}
+        autoCorrect="off"
+        spellCheck={false}
+        onFocus={() => onFocusCell(cellIndex)}
+        onChange={(e) => onChangeCell(cellIndex, e.target.value)}
+        onKeyDown={(e) => onKeyDownCell(cellIndex, e)}
+      />
+    </div>
+  );
+});
 
 function progressKey(puzzleId: string) {
   return `dct-crosswords:progress:${puzzleId}`;
@@ -529,6 +596,54 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     e.preventDefault();
   };
 
+  // Stable-identity versions of the per-cell handlers, so GridCell's
+  // React.memo can actually skip re-rendering cells whose own props didn't
+  // change, instead of every cell re-rendering on every keystroke.
+  const stableMouseDownCell = useStableCallback((cellIndex: number) => {
+    clickStartedOnActiveCellRef.current = activeCellIndex === cellIndex;
+  });
+  const stablePickCell = useStableCallback(
+    (cellIndex: number, opts?: { fromClick?: boolean }) => {
+      handlePickCell(cellIndex, opts);
+    },
+  );
+  const stableFocusCell = useStableCallback((cellIndex: number) => {
+    if (skipNextFocusPickRef.current) {
+      skipNextFocusPickRef.current = false;
+      return;
+    }
+    handlePickCell(cellIndex);
+  });
+  const stableChangeCell = useStableCallback((cellIndex: number, raw: string) => {
+    onCellInputChange(cellIndex, raw);
+  });
+  const stableKeyDownCell = useStableCallback(
+    (cellIndex: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        if (solved) return;
+        stepEntry(e.shiftKey ? -1 : 1);
+        return;
+      }
+      if (e.code === 'Space') {
+        e.preventDefault();
+        toggleDirectionForActiveCell();
+        return;
+      }
+      if (e.key === 'Backspace') {
+        if (filled[cellIndex]) {
+          return;
+        }
+        e.preventDefault();
+        backspaceEmptyCell(cellIndex);
+        return;
+      }
+      if (e.key === 'Escape') {
+        (e.target as HTMLInputElement).blur();
+      }
+    },
+  );
+
   const userOnLeaderboard = attemptId != null && leaderboard.some((e) => e.id === attemptId);
   const showRankOutsideTop =
     userRank != null && leaderboard.length > 0 && !userOnLeaderboard;
@@ -740,63 +855,22 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
                     return <div key={cellIndex} className="cell block" />;
                   }
 
-                  const value = filled[cellIndex] ?? '';
-                  const isActiveCell = activeEntryCellIndices.has(cellIndex);
-                  const isCurrentCell = activeCellIndex === cellIndex;
-
                   return (
-                    <div
+                    <GridCell
                       key={cellIndex}
-                      className={`cell ${isActiveCell ? 'cellActive' : ''} ${isCurrentCell ? 'cellCurrent' : ''}`}
-                      onMouseDown={() => {
-                        clickStartedOnActiveCellRef.current = activeCellIndex === cellIndex;
-                      }}
-                      onClick={() => handlePickCell(cellIndex, { fromClick: true })}
-                    >
-                      {numAtCell != null ? <div className="cellNumber">{numAtCell}</div> : null}
-                      <input
-                        ref={(el) => {
-                          inputsRef.current[cellIndex] = el;
-                        }}
-                        value={value}
-                        maxLength={1}
-                        inputMode={isMobile ? 'none' : undefined}
-                        autoCorrect="off"
-                        spellCheck={false}
-                        onFocus={() => {
-                          if (skipNextFocusPickRef.current) {
-                            skipNextFocusPickRef.current = false;
-                            return;
-                          }
-                          handlePickCell(cellIndex);
-                        }}
-                        onChange={(e) => onCellInputChange(cellIndex, e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Tab') {
-                            e.preventDefault();
-                            if (solved) return;
-                            stepEntry(e.shiftKey ? -1 : 1);
-                            return;
-                          }
-                          if (e.code === 'Space') {
-                            e.preventDefault();
-                            toggleDirectionForActiveCell();
-                            return;
-                          }
-                          if (e.key === 'Backspace') {
-                            if (filled[cellIndex]) {
-                              return;
-                            }
-                            e.preventDefault();
-                            backspaceEmptyCell(cellIndex);
-                            return;
-                          }
-                          if (e.key === 'Escape') {
-                            (e.target as HTMLInputElement).blur();
-                          }
-                        }}
-                      />
-                    </div>
+                      cellIndex={cellIndex}
+                      value={filled[cellIndex] ?? ''}
+                      numAtCell={numAtCell}
+                      isActiveCell={activeEntryCellIndices.has(cellIndex)}
+                      isCurrentCell={activeCellIndex === cellIndex}
+                      isMobile={isMobile}
+                      inputsRef={inputsRef}
+                      onMouseDownCell={stableMouseDownCell}
+                      onPickCell={stablePickCell}
+                      onFocusCell={stableFocusCell}
+                      onChangeCell={stableChangeCell}
+                      onKeyDownCell={stableKeyDownCell}
+                    />
                   );
                 })}
               </div>
