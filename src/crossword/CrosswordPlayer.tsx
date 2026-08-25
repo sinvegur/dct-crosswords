@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Puzzle } from './types';
 import { type Direction, type Entry, computeEntries } from './engine';
 import {
@@ -7,8 +8,17 @@ import {
   submitAttempt,
   type LeaderboardEntry,
 } from '@/lib/storage';
+import { useIsMobile } from '@/lib/useIsMobile';
 
 const SOLVER_NAME_KEY = 'dct-crosswords:solverName';
+
+const QWERTY_ROWS = [
+  ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
+  ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
+  ['Z', 'X', 'C', 'V', 'B', 'N', 'M'],
+] as const;
+
+const TURKISH_EXTRA_LETTERS = ['Ç', 'Ğ', 'İ', 'Ö', 'Ş', 'Ü'] as const;
 
 function idxOf(size: number, row: number, col: number) {
   return row * size + col;
@@ -75,6 +85,7 @@ type Props = {
 };
 
 export function CrosswordPlayer({ puzzle, solverName }: Props) {
+  const isMobile = useIsMobile();
   const size = puzzle.size;
   const cellCount = size * size;
   const computed = useMemo(() => computeEntries(puzzle.solutionGrid), [puzzle.id]);
@@ -129,6 +140,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
   const [resultsLoading, setResultsLoading] = useState(false);
 
   const [bestTimeMs, setBestTimeMs] = useState<number | null>(null);
+  const [showTurkishKeys, setShowTurkishKeys] = useState(false);
 
   useEffect(() => {
     const saved = loadProgress(puzzle.id, cellCount);
@@ -472,6 +484,24 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     else moveInResolvedEntry(entry, cellIndex, 1);
   };
 
+  const handleKeyboardBackspace = () => {
+    if (activeCellIndex == null || solved) return;
+    if (filled[activeCellIndex]) {
+      onCellInputChange(activeCellIndex, '');
+    } else {
+      backspaceEmptyCell(activeCellIndex);
+    }
+  };
+
+  const handleKeyboardLetter = (letter: string) => {
+    if (activeCellIndex == null || solved) return;
+    onCellInputChange(activeCellIndex, letter);
+  };
+
+  const preventKeyboardFocusSteal = (e: { preventDefault: () => void }) => {
+    e.preventDefault();
+  };
+
   const userOnLeaderboard = attemptId != null && leaderboard.some((e) => e.id === attemptId);
   const showRankOutsideTop =
     userRank != null && leaderboard.length > 0 && !userOnLeaderboard;
@@ -541,17 +571,19 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
       </div>
 
       <div className="panel solverGridPanel">
-        <div className="controlsRow">
-          <div>
-            <div className="title" style={{ fontSize: 16 }}>
-              {puzzle.title}
+        <div className={`controlsRow ${isMobile ? 'controlsRowCompact' : ''}`}>
+          {!isMobile ? (
+            <div>
+              <div className="title" style={{ fontSize: 16 }}>
+                {puzzle.title}
+              </div>
+              <div className="subtle solverMeta">
+                <span>
+                  Solving as <strong>{solverName}</strong>
+                </span>
+              </div>
             </div>
-            <div className="subtle solverMeta">
-              <span>
-                Solving as <strong>{solverName}</strong>
-              </span>
-            </div>
-          </div>
+          ) : null}
           <div
             style={{
               marginLeft: 'auto',
@@ -565,7 +597,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
             <div className="solverTimer" aria-live="polite">
               {formatElapsedMs(liveElapsedMs ?? tickNowMs - startAtMs)}
             </div>
-            {!solved ? (
+            {!solved && !isMobile ? (
               <button type="button" className="btn" onClick={solveInstantly}>
                 Solve it
               </button>
@@ -626,6 +658,15 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
         ) : (
           <div className="gridWrap">
             <div className="clueBar">
+              <button
+                type="button"
+                className="clueBarNav"
+                onClick={() => stepEntry(-1)}
+                disabled={!activeEntry || solved}
+                aria-label="Previous clue"
+              >
+                <ChevronLeft size={20} aria-hidden />
+              </button>
               <div className="clueBarBody">
                 {activeEntry ? (
                   <>
@@ -639,86 +680,166 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
                   <span className="clueBarText clueBarPlaceholder">Select a clue to begin</span>
                 )}
               </div>
+              <button
+                type="button"
+                className="clueBarNav"
+                onClick={() => stepEntry(1)}
+                disabled={!activeEntry || solved}
+                aria-label="Next clue"
+              >
+                <ChevronRight size={20} aria-hidden />
+              </button>
             </div>
-            <div
-              className="grid"
-              tabIndex={0}
-              style={{ '--grid-size': size } as CSSProperties}
-              onKeyDown={(e) => {
-                if (e.code === 'Space') {
-                  e.preventDefault();
-                  toggleDirectionForActiveCell();
-                }
-              }}
-            >
-              {Array.from({ length: size * size }, (_, cellIndex) => {
-                const { row, col } = posOf(size, cellIndex);
-                const char = solutionChars[cellIndex];
-                const numAtCell = computed.cellNumber[row][col];
-                if (char === '#') {
-                  return <div key={cellIndex} className="cell block" />;
-                }
+            <div className="gridSlot">
+              <div
+                className="grid"
+                tabIndex={0}
+                style={{ '--grid-size': size } as CSSProperties}
+                onKeyDown={(e) => {
+                  if (e.code === 'Space') {
+                    e.preventDefault();
+                    toggleDirectionForActiveCell();
+                  }
+                }}
+              >
+                {Array.from({ length: size * size }, (_, cellIndex) => {
+                  const { row, col } = posOf(size, cellIndex);
+                  const char = solutionChars[cellIndex];
+                  const numAtCell = computed.cellNumber[row][col];
+                  if (char === '#') {
+                    return <div key={cellIndex} className="cell block" />;
+                  }
 
-                const value = filled[cellIndex] ?? '';
-                const isActiveCell = activeEntryCellIndices.has(cellIndex);
-                const isCurrentCell = activeCellIndex === cellIndex;
+                  const value = filled[cellIndex] ?? '';
+                  const isActiveCell = activeEntryCellIndices.has(cellIndex);
+                  const isCurrentCell = activeCellIndex === cellIndex;
 
-                return (
-                  <div
-                    key={cellIndex}
-                    className={`cell ${isActiveCell ? 'cellActive' : ''} ${isCurrentCell ? 'cellCurrent' : ''}`}
-                    onMouseDown={() => {
-                      clickStartedOnActiveCellRef.current = activeCellIndex === cellIndex;
-                    }}
-                    onClick={() => handlePickCell(cellIndex, { fromClick: true })}
-                  >
-                    {numAtCell != null ? <div className="cellNumber">{numAtCell}</div> : null}
-                    <input
-                      ref={(el) => {
-                        inputsRef.current[cellIndex] = el;
+                  return (
+                    <div
+                      key={cellIndex}
+                      className={`cell ${isActiveCell ? 'cellActive' : ''} ${isCurrentCell ? 'cellCurrent' : ''}`}
+                      onMouseDown={() => {
+                        clickStartedOnActiveCellRef.current = activeCellIndex === cellIndex;
                       }}
-                      value={value}
-                      maxLength={1}
-                      inputMode="text"
-                      autoCorrect="off"
-                      spellCheck={false}
-                      onFocus={() => {
-                        if (skipNextFocusPickRef.current) {
-                          skipNextFocusPickRef.current = false;
-                          return;
-                        }
-                        handlePickCell(cellIndex);
-                      }}
-                      onChange={(e) => onCellInputChange(cellIndex, e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Tab') {
-                          e.preventDefault();
-                          if (solved) return;
-                          stepEntry(e.shiftKey ? -1 : 1);
-                          return;
-                        }
-                        if (e.code === 'Space') {
-                          e.preventDefault();
-                          toggleDirectionForActiveCell();
-                          return;
-                        }
-                        if (e.key === 'Backspace') {
-                          if (filled[cellIndex]) {
+                      onClick={() => handlePickCell(cellIndex, { fromClick: true })}
+                    >
+                      {numAtCell != null ? <div className="cellNumber">{numAtCell}</div> : null}
+                      <input
+                        ref={(el) => {
+                          inputsRef.current[cellIndex] = el;
+                        }}
+                        value={value}
+                        maxLength={1}
+                        inputMode={isMobile ? 'none' : undefined}
+                        autoCorrect="off"
+                        spellCheck={false}
+                        onFocus={() => {
+                          if (skipNextFocusPickRef.current) {
+                            skipNextFocusPickRef.current = false;
                             return;
                           }
-                          e.preventDefault();
-                          backspaceEmptyCell(cellIndex);
-                          return;
-                        }
-                        if (e.key === 'Escape') {
-                          (e.target as HTMLInputElement).blur();
-                        }
-                      }}
-                    />
-                  </div>
-                );
-              })}
+                          handlePickCell(cellIndex);
+                        }}
+                        onChange={(e) => onCellInputChange(cellIndex, e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Tab') {
+                            e.preventDefault();
+                            if (solved) return;
+                            stepEntry(e.shiftKey ? -1 : 1);
+                            return;
+                          }
+                          if (e.code === 'Space') {
+                            e.preventDefault();
+                            toggleDirectionForActiveCell();
+                            return;
+                          }
+                          if (e.key === 'Backspace') {
+                            if (filled[cellIndex]) {
+                              return;
+                            }
+                            e.preventDefault();
+                            backspaceEmptyCell(cellIndex);
+                            return;
+                          }
+                          if (e.key === 'Escape') {
+                            (e.target as HTMLInputElement).blur();
+                          }
+                        }}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
             </div>
+            {isMobile ? (
+              <div className="solverKeyboard" role="group" aria-label="On-screen keyboard">
+                {showTurkishKeys ? (
+                  <div className="solverKeyboardRow">
+                    {TURKISH_EXTRA_LETTERS.map((letter) => (
+                      <button
+                        key={letter}
+                        type="button"
+                        className="solverKey"
+                        onMouseDown={preventKeyboardFocusSteal}
+                        onClick={() => {
+                          handleKeyboardLetter(letter);
+                          setShowTurkishKeys(false);
+                        }}
+                      >
+                        {letter}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      className="solverKey solverKeyWide"
+                      aria-label="Back to letters"
+                      onMouseDown={preventKeyboardFocusSteal}
+                      onClick={() => setShowTurkishKeys(false)}
+                    >
+                      ABC
+                    </button>
+                  </div>
+                ) : (
+                  QWERTY_ROWS.map((row, rowIndex) => (
+                    <div key={rowIndex} className="solverKeyboardRow">
+                      {rowIndex === QWERTY_ROWS.length - 1 ? (
+                        <button
+                          type="button"
+                          className="solverKey solverKeyWide"
+                          aria-label="Turkish letters"
+                          onMouseDown={preventKeyboardFocusSteal}
+                          onClick={() => setShowTurkishKeys(true)}
+                        >
+                          TR
+                        </button>
+                      ) : null}
+                      {row.map((letter) => (
+                        <button
+                          key={letter}
+                          type="button"
+                          className="solverKey"
+                          onMouseDown={preventKeyboardFocusSteal}
+                          onClick={() => handleKeyboardLetter(letter)}
+                        >
+                          {letter}
+                        </button>
+                      ))}
+                      {rowIndex === QWERTY_ROWS.length - 1 ? (
+                        <button
+                          type="button"
+                          className="solverKey solverKeyWide"
+                          aria-label="Backspace"
+                          onMouseDown={preventKeyboardFocusSteal}
+                          onClick={handleKeyboardBackspace}
+                        >
+                          ⌫
+                        </button>
+                      ) : null}
+                    </div>
+                  ))
+                )}
+              </div>
+            ) : null}
           </div>
         )}
       </div>

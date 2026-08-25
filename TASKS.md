@@ -12,7 +12,7 @@ Task queue for handing work from Claude (planning/review) to Cursor (implementat
 
 ---
 
-## T045 — [TODO] Mobile solver redesign, take two: compact chrome, reordered layout, full-QWERTY keyboard with a "More" key for Turkish letters
+## T045 — [READY FOR REVIEW] Mobile solver redesign, take two: compact chrome, reordered layout, full-QWERTY keyboard with a "More" key for Turkish letters
 
 **Context — read before starting.** T040/T041/T042 built a mobile-only single-column solver layout with a custom on-screen keyboard, all reverted on 2026-08-24 after the keyboard shipped as a compressed 2-row layout with Turkish letters behind a "TR" toggle — rejected as unusable because it broke the standard QWERTY layout people already know. This task rebuilds the same idea properly, informed by exactly what went wrong last time. Two things must both be true this time: **the letter keys are never reordered, compressed, or hidden** (full standard 3-row QWERTY, always visible by default), and **the surrounding chrome shrinks enough that a full keyboard actually fits** — last time only the keyboard was touched, and it wasn't enough on its own (measured live: dropping from 3 rows to 2 only recovered ~48px against a ~267px shortfall). This task is scoped as one PR, not staged across several, specifically so the full vertical budget gets verified together at the end rather than discovered broken partway through, which is what happened last time.
 
@@ -349,6 +349,8 @@ Use Playwright at `devices['iPhone 13']` dimensions (390×844), a puzzle with a 
 6. Confirm typing (via the custom keyboard), backspace, and finishing a puzzle (results/leaderboard screen) all still work correctly on mobile.
 
 Scope: `CrosswordPlayer.tsx`, `styles.css`, `src/lib/useIsMobile.ts` (new file).
+
+**Implementation notes:** Also hide ACROSS/DOWN via `.layout.layoutSolver > .solverCluePanel { display: none }` and force `grid-template-columns: 1fr` on mobile (same specificity fix as T040) — without that the 3-column desktop grid still wins and the new stack can't fit. Layout height uses `calc(100dvh - 88px)` with compact chrome. Keyboard keys tightened to 38px tall after first measure. **iPhone 13 (390×844) measure:** grid ~320×320 → **cell ≈ 21.3px** (below the ~24px flag). That's a **width** limit on a 390px viewport (page padding + 15 columns), not leftover vertical space — `gridSlot` was ~500px tall while the square grid only needed 320. Desktop 1280 check: 3 columns, panels visible, no keyboard, no clue-bar arrows. `inputMode="none"` still needs a real-device check for native-keyboard suppression.
 
 ---
 
