@@ -646,8 +646,8 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
   };
 
   return (
-    <div className="layout">
-      <div className="panel">
+    <div className="layout layoutDesigner">
+      <div className="panel designerCluePanel">
         <div className="panelHeader">Clues</div>
         <div className="clues">
           <div className="fieldBlock">
@@ -742,7 +742,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
         </div>
       </div>
 
-      <div className="panel">
+      <div className="panel designerGridPanel">
         <div className="controlsRow">
           <div>
             <div className="title" style={{ fontSize: 16 }}>
