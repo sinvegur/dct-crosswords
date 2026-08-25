@@ -724,6 +724,16 @@ textarea {
 }
 
 @media (max-width: 860px) {
+  /* On cramped cells (15x15 puzzles specifically - mini/midi cells stay well
+     above this), the clue number badge competes with the letter for the
+     same few pixels. The clue bar already shows which numbered clue is
+     active, so drop the in-cell number here and give the letter the space. */
+  @container (max-width: 30px) {
+    .cellNumber {
+      display: none;
+    }
+  }
+
   .page {
     padding: 10px;
   }
