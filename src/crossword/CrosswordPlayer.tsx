@@ -450,7 +450,10 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     }
 
     const next = indices[nextPos];
-    if (next == null) return;
+    if (next == null) {
+      if (delta === 1) stepEntry(1);
+      return;
+    }
     handlePickCell(next);
     focusCell(next);
     setActiveCellIndex(next);

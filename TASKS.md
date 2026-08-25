@@ -24,48 +24,6 @@ After the diagnostic notes originally left here, the investigation continued dir
 
 ---
 
-## T047 — [TODO] Auto-advance to the next unfilled clue when an entry is completed
-
-Right now, typing the last letter of an entry (across or down) just stops there — the solver has to manually click/tap the next clue to continue. NYT's app (and most crossword apps) auto-jump to the next entry that still needs filling in, so solving flows continuously without breaking to pick the next clue by hand. This applies on both desktop and mobile equally — not a mobile-specific change.
-
-**The building blocks already exist, this is about connecting them.** `CrosswordPlayer.tsx` already has:
-- `moveInResolvedEntry(entry, from, delta)` — moves the active cell forward within the current entry after typing a letter, already skipping over cells pre-filled by a crossing entry (T-earlier fix). When `delta` moves past the entry's last cell, `next` comes back `null` and the function currently just `return`s, i.e. — **this is exactly the moment the current entry has just been completed** (if any cell before the end were still empty, the skip-forward loop would have stopped there instead of reaching `null`).
-- `stepEntry(delta)` — already implements "next available" correctly: walks across+down entries in order starting after the current one, skips any that `isEntryFilled()` already, and calls `focusEntry()` on the first one that still needs filling. Already wired to Tab/Shift+Tab.
-
-**The fix is a two-line change in `moveInResolvedEntry`:**
-
-```tsx
-const moveInResolvedEntry = (entry: Entry, from: number, delta: 1 | -1) => {
-  const indices = entry.cells.map((c) => idxOf(size, c.row, c.col));
-  const pos = indices.indexOf(from);
-  if (pos === -1) return;
-
-  let nextPos = pos + delta;
-  while (nextPos >= 0 && nextPos < indices.length - 1 && filled[indices[nextPos]!]) {
-    nextPos += delta;
-  }
-
-  const next = indices[nextPos];
-  if (next == null) {
-    if (delta === 1) stepEntry(1);
-    return;
-  }
-  handlePickCell(next);
-  focusCell(next);
-  setActiveCellIndex(next);
-};
-```
-
-(Only the `if (next == null)` branch changes — was a bare `return`, now calls `stepEntry(1)` first, and only for `delta === 1` since `moveInResolvedEntry` is only ever called with `delta: 1` today, from `onCellInputChange`'s forward-typing path; guarding on `delta` keeps the function correct if a `delta: -1` caller is ever added later.)
-
-**One nuance already handled correctly by `stepEntry`, don't try to "fix" it:** if every other entry in the puzzle is already filled in except the puzzle's very last one, `stepEntry(1)` wrapping around and finding nothing new to land on is expected — it already loops back to the start and, if it can't find any unfilled entry after a full loop, does nothing (stays put). That's correct behavior for "you just filled the last word."
-
-**Verify:** fill an entry completely (either direction) and confirm the active cell/clue automatically jumps to the next entry that still has empty cells, skipping any already-completed ones — both when the completed entry is followed immediately by another unfilled one, and when several entries in a row are already filled (confirm it skips all of them, matching Tab's existing behavior). Confirm this works via the physical keyboard AND the mobile custom on-screen keyboard (both funnel through the same `onCellInputChange` path, so one code change should cover both — verify both anyway). Confirm completing the very last remaining entry in the puzzle doesn't error or infinite-loop (should just stay put once `checkSolved` marks the puzzle solved, same as today, since `onCellInputChange` calls `finishIfSolved` before the auto-advance step). Confirm normal mid-entry typing (not yet complete) is unaffected — should still behave exactly as before.
-
-Scope: `CrosswordPlayer.tsx` only.
-
----
-
 ## T011 — [BLOCKED, do not start yet] Remove the "Toggle (SPACE)" / "Direction (SPACE)" buttons; consolidate into small instructional text
 
 **T010 is done, but this is deprioritized behind the T012/T013 backend work the user just started — wait for explicit go-ahead before picking this up, even once it's otherwise unblocked.**
