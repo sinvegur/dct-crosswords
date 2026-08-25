@@ -345,7 +345,15 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     const indices = entry.cells.map((c) => idxOf(size, c.row, c.col));
     const pos = indices.indexOf(from);
     if (pos === -1) return;
-    const next = indices[pos + delta];
+
+    let nextPos = pos + delta;
+    // Skip over cells already filled (e.g. from crossing a solved entry in the
+    // other direction) until an empty one, or the entry's end, is reached.
+    while (nextPos >= 0 && nextPos < indices.length - 1 && filled[indices[nextPos]!]) {
+      nextPos += delta;
+    }
+
+    const next = indices[nextPos];
     if (next == null) return;
     handlePickCell(next);
     focusCell(next);
