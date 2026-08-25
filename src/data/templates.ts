@@ -137,7 +137,7 @@ export const TEMPLATES_5: Template[] = [
     size: 5,
     name: 'Blank 5×5',
     description: 'Start from scratch and create your own block layout.',
-    defaultSymmetry: true,
+    defaultSymmetry: false,
     blocks: blankGrid(5),
   },
 ];
