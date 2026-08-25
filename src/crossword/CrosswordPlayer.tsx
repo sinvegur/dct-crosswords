@@ -40,6 +40,14 @@ function normalizeLetter(raw: string) {
   const trimmed = raw.replace(/\s+/g, '');
   if (!trimmed) return '';
   const ch = trimmed[trimmed.length - 1];
+  // A physical (EN) keyboard can only ever send plain ASCII "i"/"I" - there's
+  // no way to type the Turkish dotless "ı" or dotted "İ" directly, same as
+  // every other Turkish-specific letter. Turkish-locale uppercasing turns
+  // lowercase "i" into "İ" (correct for real Turkish text, but not what
+  // someone pressing the plain "I" key expects). Map straight to dotless "I"
+  // instead; typing the actual "İ" stays only reachable via the on-screen
+  // keyboard's dedicated key, consistent with Ç/Ğ/Ö/Ş/Ü.
+  if (ch === 'i' || ch === 'I') return 'I';
   return ch.toLocaleUpperCase('tr-TR');
 }
 
