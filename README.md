@@ -6,7 +6,7 @@ Built as a personal project (and a gift), with full Turkish character support (Ä
 
 ## Live app
 
-[dct-crosswords.vercel.app](https://dct-crosswords.vercel.app)
+[dctcrosswords.online](https://dctcrosswords.online)
 
 ## Features
 
