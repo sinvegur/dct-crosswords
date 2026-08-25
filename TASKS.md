@@ -12,49 +12,50 @@ Task queue for handing work from Claude (planning/review) to Cursor (implementat
 
 ---
 
-## T043 — [READY FOR REVIEW] Add hover states to buttons; make disabled Play/Leaderboard icons read as clearly non-interactive
+## T044 — [TODO] Always land on the first across clue in solver mode — no "Select a clue to begin" empty state
 
-**Two related cosmetic fixes, both `styles.css` only, no JSX changes needed.**
+Right now `CrosswordPlayer.tsx`'s puzzle-reset `useEffect` (the one keyed on `[puzzle.id, cellCount]`, restores saved progress via `loadProgress`) sets `activeCellIndex`/`activeEntryNumber` to `null` on mount. That means a solver who's just entered their name and landed on the grid sees no clue highlighted at all — the clue bar shows the `clueBarPlaceholder` "Select a clue to begin" text, and no cell is visually active, until they click something. The user wants the grid to always land with the first across entry already selected, so that empty/unselected state never actually appears in practice.
 
-**Problem 1 — no hover feedback anywhere.** `.btn` (used for the top nav's Puzzles / New puzzle / Sign out, and most buttons in `PuzzleDesigner.tsx`) and `.toolbarControl` (used for the puzzle list's Edit/Delete/Play/Leaderboard icons in `App.tsx`, and the designer's mode/symmetry toggle buttons) currently have no `:hover` rule at all — confirmed by checking `styles.css`, neither class has one, while several other interactive elements in the app already do (`.modalClose:hover`, `.copyPuzzleLink:hover`, `.templateCard:hover` — all use a light `#f3f4f6` background tint on hover). The page feels static as a result. Add matching hover treatment to both classes, reusing that same established `#f3f4f6` tint pattern rather than inventing a new visual language:
+**Fix — in that same reset `useEffect`:** instead of nulling out the active-entry state, select the first across entry, matching the existing "jump to first empty cell" convention already used elsewhere in this file (`focusEntry`, added in T025/T037) rather than always landing on the entry's literal first cell — that matters for a solver resuming a puzzle with saved progress (T039) where the first across entry might already be partly or fully filled in.
 
-```css
-.btn:hover:not(:disabled) {
-  background: #f3f4f6;
-}
-
-.btnPrimary:hover:not(:disabled) {
-  background: #1f2937;
-  border-color: #1f2937;
-}
-
-.toolbarControl:hover:not(:disabled) {
-  background: #f3f4f6;
-}
-
-.toolbarControl.isActive:hover:not(:disabled) {
-  background: #1f2937;
-  border-color: #1f2937;
-}
+```tsx
+useEffect(() => {
+  const saved = loadProgress(puzzle.id, cellCount);
+  const nextFilled = saved?.filled ?? Array.from({ length: cellCount }, () => '');
+  setFilled(nextFilled);
+  const firstAcross = computed.entriesAcross[0];
+  if (firstAcross) {
+    const entryIndices = firstAcross.cells.map((c) => idxOf(size, c.row, c.col));
+    const targetCell = entryIndices.find((idx) => !nextFilled[idx]) ?? entryIndices[0]!;
+    setActiveDirection('across');
+    setActiveEntryNumber(firstAcross.number);
+    setActiveCellIndex(targetCell);
+  } else {
+    setActiveDirection('across');
+    setActiveEntryNumber(null);
+    setActiveCellIndex(null);
+  }
+  setStartAtMs(saved?.startAtMs ?? Date.now());
+  setSolved(false);
+  setElapsedMs(null);
+  setTickNowMs(Date.now());
+  setLeaderboard([]);
+  setUserRank(null);
+  setAttemptId(null);
+  setSubmitError(null);
+  submittedRef.current = false;
+}, [puzzle.id, cellCount, computed, size]);
 ```
 
-**Note the `:not(:disabled)` guard is required, not optional** — without it, hovering a disabled icon (see Problem 2) would light up with the same hover background as an enabled one, actively contradicting the fix below. `.btnPrimary` and `.toolbarControl.isActive` need their own explicit hover rules (a darker shade of their already-dark active background, `#1f2937`) because they're already using a dark background/border — the plain light-tint hover would look wrong applied on top of that, and CSS specificity between `.toolbarControl:hover` and `.toolbarControl.isActive` isn't reliably predictable without an explicit rule for the combination.
+Note the dependency array gains `computed` and `size` — both needed for the new `entriesAcross[0]`/`idxOf` calls, and both stable per-puzzle (`computed` is itself a `useMemo` keyed on `puzzle.id`), so this doesn't introduce extra reruns.
 
-**Problem 2 — disabled Play/Leaderboard icons don't read as clearly non-interactive.** In `App.tsx`'s puzzle list, Play and Leaderboard (`.toolbarControl`, both with a real `disabled` attribute when `p.status !== 'published'`) currently only drop to `opacity: 0.6` while keeping the same white background and bordered-button look as the enabled Edit/Delete icons next to them — confirmed live, this reads as "slightly faded button" rather than "not available," easy to miss at a glance. Make the disabled state visually flatten instead of just fade, so it reads as an inert icon rather than a washed-out button:
+**Don't force DOM focus on mount.** This should only update the React state that drives the visual highlight (active cell styling, clue bar text) — do not call `.focus()` on the cell's `<input>` as part of this. The user asked for the clue to be *visually* selected/highlighted on landing, not for the browser's actual text-cursor focus (and keyboard, on mobile) to jump into the grid unprompted the moment the page loads.
 
-```css
-.toolbarControl:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-  color: var(--muted);
-}
-```
+**Leave the `activeEntry ? ... : <placeholder>` conditional and the "Select a clue to begin" text in place** — don't delete that fallback branch. It becomes effectively unreachable for any real puzzle (which always has at least one across entry), but it's a harmless defensive fallback for a degenerate all-blocked grid, and removing it isn't part of what's being asked here.
 
-This replaces the existing `.toolbarControl:disabled` rule (currently just `opacity: 0.6; cursor: not-allowed;`) — don't leave both, the new rule supersedes it. Leave `.btn:disabled` (opacity 0.6) untouched — the user's complaint was specifically about the row-icon buttons, not `.btn`. Keep the normal white background and border so disabled icons still sit in the same framed row as Edit/Delete; only the opacity/color should read as unavailable (user feedback: stripping the frame looked worse).
+**Verify:** enter a solver name and land on a puzzle — confirm the first across entry's number/clue is already showing in the clue bar and its cells are highlighted, with no click needed. Confirm typing immediately (no click first) fills the correct first cell. Refresh mid-solve (T039 persistence) and confirm the first across entry still gets selected on landing — if it's already fully filled from a previous session, it should land on the first cell of that entry (not search other entries for an empty cell elsewhere in the grid, that's out of scope here — just don't error or dead-end on a fully-filled first entry). Confirm solving the puzzle and the results/leaderboard screen still work normally (this `useEffect` shouldn't fire again mid-solve, only on mount/puzzle-change).
 
-**Verify:** on the puzzle list, hover over Edit/Delete/Play/Leaderboard on a **published** puzzle — all four should show the light hover tint. On a **draft** puzzle, Play and Leaderboard should look visually flat/borderless and clearly muted (no white box, no border) both at rest and on hover — hovering them should NOT show any hover tint, since they're disabled. Hover the top nav's Puzzles/New puzzle/Sign out buttons and confirm the tint appears, including on whichever one is currently `.btnPrimary` (the active page) — that one should darken slightly rather than getting the light tint. Open the puzzle designer and hover its buttons (Save, Publish, the Letter/Block mode toggles, Symmetry toggle, etc.) and confirm hover feedback there too, including the active-mode toggle button showing the darker hover variant instead of the light one.
-
-Scope: `styles.css` only.
+Scope: `CrosswordPlayer.tsx` only.
 
 ---
 
