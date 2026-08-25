@@ -12,7 +12,7 @@ Task queue for handing work from Claude (planning/review) to Cursor (implementat
 
 ---
 
-## T048 — [TODO] Auto-jump to the previous entry when backspacing past the start of a word
+## T048 — [READY FOR REVIEW] Auto-jump to the previous entry when backspacing past the start of a word
 
 Mirror of T047 (auto-advance to the next unfilled entry on completion), but for deletion: right now, backspacing at the very first cell of an entry that's already empty just does nothing — the solver is stuck there. It should instead jump to the *previous* entry (in the same across-then-down sequence `stepEntry` already walks), landing on its last cell so they can keep backspacing back through it if they want. This matches NYT and is the natural mirror of T047.
 
