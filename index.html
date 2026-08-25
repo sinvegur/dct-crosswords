@@ -7,6 +7,26 @@
     <link rel="icon" type="image/png" sizes="48x48" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>DCT Crosswords</title>
+    <meta name="description" content="A Turkish crossword, made just for you to solve." />
+
+    <!-- Link previews. These are static, so every URL (the homepage and each
+         /p/<slug> puzzle) shares one card - crawlers don't run JS, so a
+         per-puzzle title would need server-side rendering. og:image must be
+         an absolute URL. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="DCT Crosswords" />
+    <meta property="og:title" content="DCT Crosswords" />
+    <meta property="og:description" content="A Turkish crossword, made just for you to solve." />
+    <meta property="og:image" content="https://www.dctcrosswords.online/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="DCT Crosswords" />
+    <meta property="og:url" content="https://www.dctcrosswords.online/" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="DCT Crosswords" />
+    <meta name="twitter:description" content="A Turkish crossword, made just for you to solve." />
+    <meta name="twitter:image" content="https://www.dctcrosswords.online/og-image.png" />
   </head>
   <body>
     <div id="root"></div>
