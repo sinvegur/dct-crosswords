@@ -1,6 +1,6 @@
 # DCT Crosswords
 
-A Turkish-language crossword puzzle app — build a 15×15 puzzle, publish it, and share a link. Solvers play in the browser with a live timer and land on a leaderboard when they finish. No accounts needed to solve; one creator account handles building and publishing.
+A Turkish-language crossword puzzle app — build a 15×15 / 9x9 / 5x5 puzzle, publish it, and share a link. Solvers play in the browser with a live timer and land on a leaderboard when they finish. No accounts needed to solve; one creator account handles building and publishing.
 
 Built as a personal project, with full Turkish character support (İ/ı, Ğ, Ş, Ö, Ü, Ç) throughout — grid input, clue text, and slug generation.
 
@@ -20,6 +20,7 @@ Built as a personal project, with full Turkish character support (İ/ı, Ğ, Ş,
 - Open a puzzle's link, enter a name, solve
 - Keyboard navigation (arrow movement within a word, Tab/Shift+Tab between clues), click-to-select clues, click-to-toggle direction on cells that start both an across and down entry
 - Live timer, then a results screen with the puzzle's leaderboard on finishing
+- Optimized for mobile solving experience
 
 ## Tech stack
 
