@@ -12,6 +12,34 @@ Task queue for handing work from Claude (planning/review) to Cursor (implementat
 
 ---
 
+## T046 — [TODO] Mobile 15x15 grid: letters render mostly clipped/hidden — needs real-device diagnosis, not another blind CSS guess
+
+**Read this whole thing before touching any code — this task exists specifically because guessing at CSS fixes without real-device data hasn't worked, twice, and a third blind guess is not a good use of anyone's time.**
+
+**Symptom, in the user's own words:** on a 15x15 puzzle on their iPhone (real Safari, not emulation), typed letters in grid cells render "mostly hidden behind white space" — only a small fragment of each letter is visible (e.g. typing "ASTIN" showed only a fraction of each letter: a diagonal sliver where "A" should be, a small curl for "S", a dot for "T", two dots for "I", a single bar for "N"). This reads as **severe clipping/overflow of an oversized glyph inside a small cell**, not a wrong-character bug — the user confirmed the underlying app state is correct (verified independently: typing the same letters in this session's own testing shows the right letters stored correctly), it's purely a rendering/sizing problem on their specific device. This does **not** happen on mini (5x5) or midi (9x9) puzzles, only 15x15, where cells are smallest (~21px at typical phone widths).
+
+**What's already been tried and ruled out — do not re-attempt these without new evidence:**
+
+1. **Font-loading/wrong-font hypothesis** — ruled out. Confirmed via Playwright + WebKit with the exact real webfont (`Atkinson Hyperlegible Next`, weight 700) loaded that letters render correctly and fully inside 21px cells at 16px font-size, including all Turkish diacritics (Ç, Ğ, İ, Ö, Ş, Ü tested individually, all render complete, no clipping).
+2. **Reproducing the exact reported scenario** — ruled out as a logic bug. Built a test puzzle with a 5-letter entry ("ASTIN") in the same grid-size/cell-size configuration as reported and typed it via the app's own custom on-screen keyboard in Playwright/WebKit: renders perfectly, clean and fully visible. The bug does not reproduce in any browser-automation environment tried (Chromium or WebKit, various viewports).
+3. **Descender/diacritic clipping** (an earlier, different bug that *was* real and fixed) — this was a genuine issue with Turkish cedillas/breves getting cut off at the cell's bottom edge, fixed via `line-height: 1` and adjusting the font-size clamp on `.cell input` in `styles.css`. Confirmed fixed via the WebKit test above. Not the same symptom as this task (that one was a small clipped diacritic tail; this one is most of the letter missing).
+4. **iOS Safari auto-zoom-on-focus** (font-size < 16px triggers a disruptive page zoom) — this was real and is fixed (user confirmed: "zoom issue fixed"). Raised `.cell input`'s font-size floor from 12px to 16px specifically to stop this.
+5. **iOS Safari's site-wide text-size auto-adjustment** (tied to the phone's own Accessibility → Text Size setting, can inflate rendered text beyond what CSS specifies) — added the standard opt-out (`-webkit-text-size-adjust: 100%` / `text-size-adjust: 100%` on `html, body`) as the most likely remaining explanation. **User reports this did not help ("nothing changed").**
+
+**Hypotheses not yet tried — worth considering, in rough priority order:**
+
+- **Stuck browser zoom state from an earlier session.** The auto-zoom-on-focus bug (see #4 above) was real and only recently fixed. If the user tested in a tab/PWA session that was already zoomed in from *before* that fix landed, Safari does not always reset zoom back to 100% on a soft refresh — it may need a full close-and-reopen (swipe the tab away entirely, not just navigate) or an explicit double-tap-to-reset. This would produce exactly this symptom (everything appearing zoomed in, showing only a fraction of each cell) despite the underlying CSS being correct. **Cheapest thing to rule out first** — ask the user to fully close Safari (not just refresh) and reopen the puzzle fresh, or test in a brand new private tab.
+- **Real device inspection is the highest-value next step if the above doesn't explain it.** This bug has not reproduced in any automated testing (Chromium or WebKit) across this whole investigation — that strongly suggests it depends on real iOS Safari behavior or the user's specific device/OS settings in a way emulation can't capture. The correct tool for this is **Safari's remote Web Inspector**: connect the iPhone to a Mac via USB, enable Web Inspector on the iPhone (Settings → Safari → Advanced → Web Inspector), then on the Mac open Safari → Develop menu → [device name] → [page] to get a full live DevTools session against the *actual* broken page — computed styles, actual rendered font-size, actual cell dimensions, actual zoom level. This is the only way to get real data instead of another guess. If neither Claude nor Cursor has physical access to make this happen, the user is the only one who can drive it — say so plainly rather than proposing another speculative CSS change.
+- Only after real data is available: consider whether `cqi`/`cqw` container-query units are resolving differently on real iOS Safari than in Playwright's WebKit build (a plausible but so-far-unconfirmed WebKit-version difference), or whether iOS Dynamic Type (a different mechanism from the text-size-adjust already tried) is inflating the `ui-sans-serif`/`system-ui` fallback in the font stack specifically.
+
+**Do not** ship another speculative font-size/line-height/clamp() tweak without first getting real computed-style data from the device (via Web Inspector) or ruling out the stuck-zoom-state hypothesis. Two rounds of guessing have already gone out with high confidence and turned out not to fix it.
+
+Relevant code: `.cell input` in `src/styles.css` (currently `font-size: clamp(16px, 50cqi, 90px); line-height: 1;`), the `html, body` `text-size-adjust` rule added most recently, and `src/crossword/CrosswordPlayer.tsx`'s grid cell rendering (`GridCell` component).
+
+Scope: `src/styles.css` primarily; do not touch `CrosswordPlayer.tsx`'s interaction logic (typing, backspace, navigation) as part of this — that's all been separately verified working and is out of scope here.
+
+---
+
 ## T011 — [BLOCKED, do not start yet] Remove the "Toggle (SPACE)" / "Direction (SPACE)" buttons; consolidate into small instructional text
 
 **T010 is done, but this is deprioritized behind the T012/T013 backend work the user just started — wait for explicit go-ahead before picking this up, even once it's otherwise unblocked.**
