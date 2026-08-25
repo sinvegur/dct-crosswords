@@ -327,11 +327,19 @@ textarea {
 }
 
 .cell input {
+  /* Without this, iOS Safari applies its own native default styling/
+     padding to text inputs underneath whatever CSS is set here - a classic
+     gotcha for custom-styled inputs that border:none/padding:0 alone don't
+     fully override on iOS specifically. */
+  -webkit-appearance: none;
+  appearance: none;
   box-sizing: border-box;
   position: relative;
   z-index: 1;
   width: 100%;
   height: 100%;
+  padding: 0;
+  margin: 0;
   line-height: 1;
   text-align: center;
   border: none;
