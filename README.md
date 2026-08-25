@@ -2,7 +2,7 @@
 
 A Turkish-language crossword puzzle app — build a 15×15 puzzle, publish it, and share a link. Solvers play in the browser with a live timer and land on a leaderboard when they finish. No accounts needed to solve; one creator account handles building and publishing.
 
-Built as a personal project (and a gift), with full Turkish character support (İ/ı, Ğ, Ş, Ö, Ü, Ç) throughout — grid input, clue text, and slug generation.
+Built as a personal project, with full Turkish character support (İ/ı, Ğ, Ş, Ö, Ü, Ç) throughout — grid input, clue text, and slug generation.
 
 ## Live app
 
