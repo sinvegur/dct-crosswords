@@ -12,7 +12,7 @@ Task queue for handing work from Claude (planning/review) to Cursor (implementat
 
 ---
 
-## T044 — [TODO] Always land on the first across clue in solver mode — no "Select a clue to begin" empty state
+## T044 — [READY FOR REVIEW] Always land on the first across clue in solver mode — no "Select a clue to begin" empty state
 
 Right now `CrosswordPlayer.tsx`'s puzzle-reset `useEffect` (the one keyed on `[puzzle.id, cellCount]`, restores saved progress via `loadProgress`) sets `activeCellIndex`/`activeEntryNumber` to `null` on mount. That means a solver who's just entered their name and landed on the grid sees no clue highlighted at all — the clue bar shows the `clueBarPlaceholder` "Select a clue to begin" text, and no cell is visually active, until they click something. The user wants the grid to always land with the first across entry already selected, so that empty/unselected state never actually appears in practice.
 
