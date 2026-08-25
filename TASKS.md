@@ -12,6 +12,54 @@ Task queue for handing work from Claude (planning/review) to Cursor (implementat
 
 ---
 
+## T043 — [TODO] Add hover states to buttons; make disabled Play/Leaderboard icons read as clearly non-interactive
+
+**Two related cosmetic fixes, both `styles.css` only, no JSX changes needed.**
+
+**Problem 1 — no hover feedback anywhere.** `.btn` (used for the top nav's Puzzles / New puzzle / Sign out, and most buttons in `PuzzleDesigner.tsx`) and `.toolbarControl` (used for the puzzle list's Edit/Delete/Play/Leaderboard icons in `App.tsx`, and the designer's mode/symmetry toggle buttons) currently have no `:hover` rule at all — confirmed by checking `styles.css`, neither class has one, while several other interactive elements in the app already do (`.modalClose:hover`, `.copyPuzzleLink:hover`, `.templateCard:hover` — all use a light `#f3f4f6` background tint on hover). The page feels static as a result. Add matching hover treatment to both classes, reusing that same established `#f3f4f6` tint pattern rather than inventing a new visual language:
+
+```css
+.btn:hover:not(:disabled) {
+  background: #f3f4f6;
+}
+
+.btnPrimary:hover:not(:disabled) {
+  background: #1f2937;
+  border-color: #1f2937;
+}
+
+.toolbarControl:hover:not(:disabled) {
+  background: #f3f4f6;
+}
+
+.toolbarControl.isActive:hover:not(:disabled) {
+  background: #1f2937;
+  border-color: #1f2937;
+}
+```
+
+**Note the `:not(:disabled)` guard is required, not optional** — without it, hovering a disabled icon (see Problem 2) would light up with the same hover background as an enabled one, actively contradicting the fix below. `.btnPrimary` and `.toolbarControl.isActive` need their own explicit hover rules (a darker shade of their already-dark active background, `#1f2937`) because they're already using a dark background/border — the plain light-tint hover would look wrong applied on top of that, and CSS specificity between `.toolbarControl:hover` and `.toolbarControl.isActive` isn't reliably predictable without an explicit rule for the combination.
+
+**Problem 2 — disabled Play/Leaderboard icons don't read as clearly non-interactive.** In `App.tsx`'s puzzle list, Play and Leaderboard (`.toolbarControl`, both with a real `disabled` attribute when `p.status !== 'published'`) currently only drop to `opacity: 0.6` while keeping the same white background and bordered-button look as the enabled Edit/Delete icons next to them — confirmed live, this reads as "slightly faded button" rather than "not available," easy to miss at a glance. Make the disabled state visually flatten instead of just fade, so it reads as an inert icon rather than a washed-out button:
+
+```css
+.toolbarControl:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+```
+
+This replaces the existing `.toolbarControl:disabled` rule (currently just `opacity: 0.6; cursor: not-allowed;`) — don't leave both, the new rule supersedes it. Leave `.btn:disabled` (opacity 0.6) untouched — the user's complaint was specifically about the row-icon buttons, not `.btn`.
+
+**Verify:** on the puzzle list, hover over Edit/Delete/Play/Leaderboard on a **published** puzzle — all four should show the light hover tint. On a **draft** puzzle, Play and Leaderboard should look visually flat/borderless and clearly muted (no white box, no border) both at rest and on hover — hovering them should NOT show any hover tint, since they're disabled. Hover the top nav's Puzzles/New puzzle/Sign out buttons and confirm the tint appears, including on whichever one is currently `.btnPrimary` (the active page) — that one should darken slightly rather than getting the light tint. Open the puzzle designer and hover its buttons (Save, Publish, the Letter/Block mode toggles, Symmetry toggle, etc.) and confirm hover feedback there too, including the active-mode toggle button showing the darker hover variant instead of the light one.
+
+Scope: `styles.css` only.
+
+---
+
 ## T011 — [BLOCKED, do not start yet] Remove the "Toggle (SPACE)" / "Direction (SPACE)" buttons; consolidate into small instructional text
 
 **T010 is done, but this is deprioritized behind the T012/T013 backend work the user just started — wait for explicit go-ahead before picking this up, even once it's otherwise unblocked.**
