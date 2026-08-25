@@ -711,10 +711,8 @@ textarea {
 }
 
 .toolbarControl:disabled {
-  opacity: 0.35;
+  opacity: 0.4;
   cursor: not-allowed;
-  border-color: transparent;
-  background: transparent;
   color: var(--muted);
 }
 
