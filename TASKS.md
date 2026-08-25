@@ -12,31 +12,57 @@ Task queue for handing work from Claude (planning/review) to Cursor (implementat
 
 ---
 
-## T046 — [TODO] Mobile 15x15 grid: letters render mostly clipped/hidden — needs real-device diagnosis, not another blind CSS guess
+## T046 — [BLOCKED, pending user confirmation] Mobile letter-clipping bug — likely fixed, awaiting real-device check
 
-**Read this whole thing before touching any code — this task exists specifically because guessing at CSS fixes without real-device data hasn't worked, twice, and a third blind guess is not a good use of anyone's time.**
+**Not a Cursor task right now — do not pick this up.** Claude handled this directly (real-device-only bug, needed live iteration). Leaving a short record here rather than deleting, in case it resurfaces.
 
-**Symptom, in the user's own words:** on a 15x15 puzzle on their iPhone (real Safari, not emulation), typed letters in grid cells render "mostly hidden behind white space" — only a small fragment of each letter is visible (e.g. typing "ASTIN" showed only a fraction of each letter: a diagonal sliver where "A" should be, a small curl for "S", a dot for "T", two dots for "I", a single bar for "N"). This reads as **severe clipping/overflow of an oversized glyph inside a small cell**, not a wrong-character bug — the user confirmed the underlying app state is correct (verified independently: typing the same letters in this session's own testing shows the right letters stored correctly), it's purely a rendering/sizing problem on their specific device. This does **not** happen on mini (5x5) or midi (9x9) puzzles, only 15x15, where cells are smallest (~21px at typical phone widths).
+After the diagnostic notes originally left here, the investigation continued directly (not via Cursor) through several more rounds. Two things turned out to matter beyond what's listed below:
+- The bug also affects 9x9 (midi), not just 15x15 — just proportionally less severe. That reframed it from "something about 15x15's specific cell size" to "a roughly fixed amount of space being eaten in every cell regardless of size."
+- That pointed at the real likely cause: iOS Safari applies native default styling/padding to text inputs unless a page explicitly opts out (`-webkit-appearance: none`), which was missing from `.cell input` entirely. Fixed, plus removed the grid's remaining CSS container-query dependency (container-type/cqw/cqi) in favor of directly JS-measuring cell size via `ResizeObserver` and applying plain pixel values — since the bug never reproduced in any automated testing, container queries behaving unexpectedly on the specific real device was a live suspect worth eliminating regardless.
 
-**What's already been tried and ruled out — do not re-attempt these without new evidence:**
+**Status: fix shipped, not yet confirmed on the user's actual device** ("will check later"). If it comes back after confirmation, or a new report references this, read the full commit history on `src/styles.css` and `src/crossword/CrosswordPlayer.tsx` from today (2026-08-25) before re-diagnosing — a lot of ground was already covered.
 
-1. **Font-loading/wrong-font hypothesis** — ruled out. Confirmed via Playwright + WebKit with the exact real webfont (`Atkinson Hyperlegible Next`, weight 700) loaded that letters render correctly and fully inside 21px cells at 16px font-size, including all Turkish diacritics (Ç, Ğ, İ, Ö, Ş, Ü tested individually, all render complete, no clipping).
-2. **Reproducing the exact reported scenario** — ruled out as a logic bug. Built a test puzzle with a 5-letter entry ("ASTIN") in the same grid-size/cell-size configuration as reported and typed it via the app's own custom on-screen keyboard in Playwright/WebKit: renders perfectly, clean and fully visible. The bug does not reproduce in any browser-automation environment tried (Chromium or WebKit, various viewports).
-3. **Descender/diacritic clipping** (an earlier, different bug that *was* real and fixed) — this was a genuine issue with Turkish cedillas/breves getting cut off at the cell's bottom edge, fixed via `line-height: 1` and adjusting the font-size clamp on `.cell input` in `styles.css`. Confirmed fixed via the WebKit test above. Not the same symptom as this task (that one was a small clipped diacritic tail; this one is most of the letter missing).
-4. **iOS Safari auto-zoom-on-focus** (font-size < 16px triggers a disruptive page zoom) — this was real and is fixed (user confirmed: "zoom issue fixed"). Raised `.cell input`'s font-size floor from 12px to 16px specifically to stop this.
-5. **iOS Safari's site-wide text-size auto-adjustment** (tied to the phone's own Accessibility → Text Size setting, can inflate rendered text beyond what CSS specifies) — added the standard opt-out (`-webkit-text-size-adjust: 100%` / `text-size-adjust: 100%` on `html, body`) as the most likely remaining explanation. **User reports this did not help ("nothing changed").**
+---
 
-**Hypotheses not yet tried — worth considering, in rough priority order:**
+## T047 — [TODO] Auto-advance to the next unfilled clue when an entry is completed
 
-- **Stuck browser zoom state from an earlier session.** The auto-zoom-on-focus bug (see #4 above) was real and only recently fixed. If the user tested in a tab/PWA session that was already zoomed in from *before* that fix landed, Safari does not always reset zoom back to 100% on a soft refresh — it may need a full close-and-reopen (swipe the tab away entirely, not just navigate) or an explicit double-tap-to-reset. This would produce exactly this symptom (everything appearing zoomed in, showing only a fraction of each cell) despite the underlying CSS being correct. **Cheapest thing to rule out first** — ask the user to fully close Safari (not just refresh) and reopen the puzzle fresh, or test in a brand new private tab.
-- **Real device inspection is the highest-value next step if the above doesn't explain it.** This bug has not reproduced in any automated testing (Chromium or WebKit) across this whole investigation — that strongly suggests it depends on real iOS Safari behavior or the user's specific device/OS settings in a way emulation can't capture. The correct tool for this is **Safari's remote Web Inspector**: connect the iPhone to a Mac via USB, enable Web Inspector on the iPhone (Settings → Safari → Advanced → Web Inspector), then on the Mac open Safari → Develop menu → [device name] → [page] to get a full live DevTools session against the *actual* broken page — computed styles, actual rendered font-size, actual cell dimensions, actual zoom level. This is the only way to get real data instead of another guess. If neither Claude nor Cursor has physical access to make this happen, the user is the only one who can drive it — say so plainly rather than proposing another speculative CSS change.
-- Only after real data is available: consider whether `cqi`/`cqw` container-query units are resolving differently on real iOS Safari than in Playwright's WebKit build (a plausible but so-far-unconfirmed WebKit-version difference), or whether iOS Dynamic Type (a different mechanism from the text-size-adjust already tried) is inflating the `ui-sans-serif`/`system-ui` fallback in the font stack specifically.
+Right now, typing the last letter of an entry (across or down) just stops there — the solver has to manually click/tap the next clue to continue. NYT's app (and most crossword apps) auto-jump to the next entry that still needs filling in, so solving flows continuously without breaking to pick the next clue by hand. This applies on both desktop and mobile equally — not a mobile-specific change.
 
-**Do not** ship another speculative font-size/line-height/clamp() tweak without first getting real computed-style data from the device (via Web Inspector) or ruling out the stuck-zoom-state hypothesis. Two rounds of guessing have already gone out with high confidence and turned out not to fix it.
+**The building blocks already exist, this is about connecting them.** `CrosswordPlayer.tsx` already has:
+- `moveInResolvedEntry(entry, from, delta)` — moves the active cell forward within the current entry after typing a letter, already skipping over cells pre-filled by a crossing entry (T-earlier fix). When `delta` moves past the entry's last cell, `next` comes back `null` and the function currently just `return`s, i.e. — **this is exactly the moment the current entry has just been completed** (if any cell before the end were still empty, the skip-forward loop would have stopped there instead of reaching `null`).
+- `stepEntry(delta)` — already implements "next available" correctly: walks across+down entries in order starting after the current one, skips any that `isEntryFilled()` already, and calls `focusEntry()` on the first one that still needs filling. Already wired to Tab/Shift+Tab.
 
-Relevant code: `.cell input` in `src/styles.css` (currently `font-size: clamp(16px, 50cqi, 90px); line-height: 1;`), the `html, body` `text-size-adjust` rule added most recently, and `src/crossword/CrosswordPlayer.tsx`'s grid cell rendering (`GridCell` component).
+**The fix is a two-line change in `moveInResolvedEntry`:**
 
-Scope: `src/styles.css` primarily; do not touch `CrosswordPlayer.tsx`'s interaction logic (typing, backspace, navigation) as part of this — that's all been separately verified working and is out of scope here.
+```tsx
+const moveInResolvedEntry = (entry: Entry, from: number, delta: 1 | -1) => {
+  const indices = entry.cells.map((c) => idxOf(size, c.row, c.col));
+  const pos = indices.indexOf(from);
+  if (pos === -1) return;
+
+  let nextPos = pos + delta;
+  while (nextPos >= 0 && nextPos < indices.length - 1 && filled[indices[nextPos]!]) {
+    nextPos += delta;
+  }
+
+  const next = indices[nextPos];
+  if (next == null) {
+    if (delta === 1) stepEntry(1);
+    return;
+  }
+  handlePickCell(next);
+  focusCell(next);
+  setActiveCellIndex(next);
+};
+```
+
+(Only the `if (next == null)` branch changes — was a bare `return`, now calls `stepEntry(1)` first, and only for `delta === 1` since `moveInResolvedEntry` is only ever called with `delta: 1` today, from `onCellInputChange`'s forward-typing path; guarding on `delta` keeps the function correct if a `delta: -1` caller is ever added later.)
+
+**One nuance already handled correctly by `stepEntry`, don't try to "fix" it:** if every other entry in the puzzle is already filled in except the puzzle's very last one, `stepEntry(1)` wrapping around and finding nothing new to land on is expected — it already loops back to the start and, if it can't find any unfilled entry after a full loop, does nothing (stays put). That's correct behavior for "you just filled the last word."
+
+**Verify:** fill an entry completely (either direction) and confirm the active cell/clue automatically jumps to the next entry that still has empty cells, skipping any already-completed ones — both when the completed entry is followed immediately by another unfilled one, and when several entries in a row are already filled (confirm it skips all of them, matching Tab's existing behavior). Confirm this works via the physical keyboard AND the mobile custom on-screen keyboard (both funnel through the same `onCellInputChange` path, so one code change should cover both — verify both anyway). Confirm completing the very last remaining entry in the puzzle doesn't error or infinite-loop (should just stay put once `checkSolved` marks the puzzle solved, same as today, since `onCellInputChange` calls `finishIfSolved` before the auto-advance step). Confirm normal mid-entry typing (not yet complete) is unaffected — should still behave exactly as before.
+
+Scope: `CrosswordPlayer.tsx` only.
 
 ---
 
