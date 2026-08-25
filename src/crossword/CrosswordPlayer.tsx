@@ -376,6 +376,13 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     if (!el) return;
     skipNextFocusPickRef.current = true;
     el.focus();
+    // Without this, a programmatic focus on a cell that already has a
+    // letter leaves the cursor positioned to insert rather than replace -
+    // with maxLength=1 already at capacity, the browser just rejects the
+    // next keystroke instead of overwriting. Selecting the (0 or 1 char)
+    // content means typing immediately replaces it, same as any normal
+    // text input.
+    el.select();
     el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   };
 
@@ -566,6 +573,8 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
       if (nextIdx >= combined.length) nextIdx = 0;
     }
 
+    const fallbackIdx = nextIdx;
+
     for (let steps = 0; steps < combined.length; steps++) {
       const item = combined[nextIdx]!;
       if (!isEntryFilled(item.entry)) {
@@ -576,6 +585,15 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
       if (nextIdx < 0) nextIdx = combined.length - 1;
       if (nextIdx >= combined.length) nextIdx = 0;
     }
+
+    // Every entry is already filled in (grid complete but not "solved" -
+    // some answers may be wrong). There's no unfilled entry to skip to, but
+    // navigation shouldn't just stop - fall back to the plain next/previous
+    // entry so the solver can keep moving and overwrite a wrong answer.
+    // focusEntry already lands on an entry's first cell when it has no
+    // empty cells left, so this naturally does the right thing here too.
+    const fallback = combined[fallbackIdx]!;
+    focusEntry(fallback.direction, fallback.entry.number);
   };
 
   const toggleDirectionForActiveCell = () => {
