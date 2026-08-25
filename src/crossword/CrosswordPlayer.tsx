@@ -473,6 +473,12 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     const target = combined[prevIdx]!;
     const targetIndices = target.entry.cells.map((c) => idxOf(size, c.row, c.col));
     const lastCell = targetIndices[targetIndices.length - 1]!;
+    // Matches the existing same-entry cascade below: backspacing across an
+    // entry boundary should delete that cell's letter in the same action,
+    // not just navigate to it and require a second backspace.
+    const nextFilled = filled.slice();
+    nextFilled[lastCell] = '';
+    setFilled(nextFilled);
     setActiveDirection(target.direction);
     setActiveEntryNumber(target.entry.number);
     setActiveCellIndex(lastCell);
