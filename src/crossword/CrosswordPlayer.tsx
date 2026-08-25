@@ -791,9 +791,16 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
               </div>
             </div>
           ) : (
-            <div className="title controlsRowCompactTitle" style={{ fontSize: 16 }}>
-              {puzzle.title}
-            </div>
+            <>
+              <img
+                src="/dct_crosswords_transparent.png"
+                alt="DCT Crosswords"
+                className="controlsRowLogo"
+              />
+              <div className="title controlsRowCompactTitle" style={{ fontSize: 16 }}>
+                {puzzle.title}
+              </div>
+            </>
           )}
           <div
             style={{

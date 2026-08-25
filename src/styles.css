@@ -230,6 +230,13 @@ textarea {
   text-overflow: ellipsis;
 }
 
+.controlsRowLogo {
+  height: 22px;
+  width: auto;
+  flex-shrink: 0;
+  display: block;
+}
+
 .panel {
   background: var(--panel);
   border: 1px solid var(--border);
