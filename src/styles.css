@@ -120,6 +120,15 @@ textarea {
   align-items: center;
 }
 
+.gridSlot {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .solverGridPanel .grid {
   width: calc(100cqmin - 24px);
   height: calc(100cqmin - 24px);
@@ -136,6 +145,9 @@ textarea {
 }
 
 .clueBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   width: 100%;
   box-sizing: border-box;
   padding: 10px 12px;
@@ -144,7 +156,32 @@ textarea {
   border-radius: 10px;
 }
 
+.clueBarNav {
+  flex-shrink: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #1e3a8a;
+  cursor: pointer;
+  border-radius: 8px;
+}
+
+.clueBarNav:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.clueBarNav:not(:disabled):hover {
+  background: #dbeafe;
+}
+
 .clueBarBody {
+  flex: 1;
   min-width: 0;
   display: flex;
   align-items: center;
@@ -169,6 +206,14 @@ textarea {
 
 .clueBarPlaceholder {
   color: var(--muted);
+}
+
+.solverKeyboard {
+  display: none;
+}
+
+.controlsRowCompact {
+  padding: 6px 12px;
 }
 
 .panel {
@@ -667,17 +712,113 @@ textarea {
 }
 
 @media (max-width: 860px) {
+  .page {
+    padding: 10px;
+  }
+
+  .header {
+    margin-bottom: 6px;
+  }
+
+  .logoImg {
+    height: 36px;
+  }
+
   .layout {
     grid-template-columns: 1fr;
   }
 
   .layout.layoutSolver {
-    height: auto;
+    grid-template-columns: 1fr;
+    height: calc(100dvh - 88px);
     min-height: 0;
   }
 
-  .solverCluePanel .cluesScroll {
-    max-height: 280px;
+  .layout.layoutSolver > .solverCluePanel {
+    display: none;
+  }
+
+  .solverGridPanel {
+    overflow-y: hidden;
+  }
+
+  .controlsRowCompact .solverTimer {
+    font-size: 22px;
+  }
+
+  .clueBar {
+    order: 2;
+    margin-bottom: 0;
+    margin-top: 14px;
+    padding: 8px 10px;
+  }
+
+  .clueBarBody {
+    min-height: calc(14px * 1.35 * 2);
+  }
+
+  .clueBarNav {
+    display: inline-flex;
+  }
+
+  .gridSlot {
+    order: 1;
+    flex: 0 0 auto;
+    container-type: inline-size;
+  }
+
+  .solverGridPanel .grid {
+    width: calc(100cqw - 24px);
+    height: calc(100cqw - 24px);
+  }
+
+  .solverKeyboard {
+    order: 3;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 14px 2px 2px;
+  }
+
+  .solverKeyboardRow {
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+  }
+
+  .solverKey {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 42px;
+    height: 54px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: #ffffff;
+    color: #111827;
+    font-family: var(--font-grid);
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .solverKey:active {
+    background: #e5e7eb;
+  }
+
+  .solverKeyWide {
+    max-width: 50px;
+    font-size: 13px;
+  }
+
+  .solverResults {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
   }
 }
 
