@@ -573,6 +573,11 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
     const proceed = pendingProceedRef.current;
     pendingProceedRef.current = null;
     setUnsavedModalOpen(false);
+    // `proceed` (e.g. goHome) re-wraps itself in runGuarded, and discarding
+    // doesn't change title/rows/clues - isDirty stays true, so without this
+    // the same guard re-fires and just reopens this modal instead of
+    // navigating. The user already made their call; let it through.
+    unregisterGuard();
     proceed?.();
   };
 
@@ -586,6 +591,10 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
       updateBaseline();
       pendingProceedRef.current = null;
       setUnsavedModalOpen(false);
+      // Same reason as handleDiscardChanges: updateBaseline() only updates a
+      // ref, which isDirty's useMemo doesn't depend on, so isDirty stays
+      // stale/true here too - without this, proceed() re-triggers the guard.
+      unregisterGuard();
       proceed?.();
     } finally {
       setSaving(false);
