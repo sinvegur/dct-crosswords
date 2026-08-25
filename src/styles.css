@@ -17,6 +17,12 @@
 html,
 body {
   height: 100%;
+  /* Stop iOS Safari from auto-boosting text size beyond what's set here
+     (tied to the phone's own Text Size accessibility setting) - without
+     this, grid letters can render far larger than the 16px intended and
+     overflow/clip inside their cell. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
