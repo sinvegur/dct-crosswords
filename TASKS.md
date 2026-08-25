@@ -12,7 +12,7 @@ Task queue for handing work from Claude (planning/review) to Cursor (implementat
 
 ---
 
-## T043 — [TODO] Add hover states to buttons; make disabled Play/Leaderboard icons read as clearly non-interactive
+## T043 — [READY FOR REVIEW] Add hover states to buttons; make disabled Play/Leaderboard icons read as clearly non-interactive
 
 **Two related cosmetic fixes, both `styles.css` only, no JSX changes needed.**
 
