@@ -583,10 +583,15 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
                 </span>
               </div>
             </div>
-          ) : null}
+          ) : (
+            <div className="title controlsRowCompactTitle" style={{ fontSize: 16 }}>
+              {puzzle.title}
+            </div>
+          )}
           <div
             style={{
               marginLeft: 'auto',
+              flexShrink: 0,
               display: 'flex',
               gap: 8,
               flexWrap: 'wrap',

@@ -216,6 +216,14 @@ textarea {
   padding: 6px 12px;
 }
 
+.controlsRowCompactTitle {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .panel {
   background: var(--panel);
   border: 1px solid var(--border);
@@ -780,7 +788,10 @@ textarea {
     gap: 8px;
     width: 100%;
     box-sizing: border-box;
-    padding: 14px 2px 2px;
+    padding: 12px 6px;
+    margin-top: 10px;
+    background: #e9eaed;
+    border-radius: 12px;
   }
 
   .solverKeyboardRow {
