@@ -52,6 +52,35 @@ export function formatElapsedMs(ms: number): string {
 
 export { SOLVER_NAME_KEY };
 
+function SolverTimer({
+  startAtMs,
+  solved,
+  elapsedMs,
+}: {
+  startAtMs: number;
+  solved: boolean;
+  elapsedMs: number | null;
+}) {
+  // Isolated so the once-a-second tick only re-renders this small display,
+  // not the whole CrosswordPlayer (and its full cell grid) every second.
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    setNow(Date.now());
+    if (solved) return;
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [startAtMs, solved]);
+
+  const liveElapsedMs = !solved ? now - startAtMs : elapsedMs;
+
+  return (
+    <div className="solverTimer" aria-live="polite">
+      {formatElapsedMs(liveElapsedMs ?? now - startAtMs)}
+    </div>
+  );
+}
+
 function progressKey(puzzleId: string) {
   return `dct-crosswords:progress:${puzzleId}`;
 }
@@ -129,7 +158,6 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     const saved = loadProgress(puzzle.id, cellCount);
     return saved?.startAtMs ?? Date.now();
   });
-  const [tickNowMs, setTickNowMs] = useState(() => Date.now());
   const [elapsedMs, setElapsedMs] = useState<number | null>(null);
   const [solved, setSolved] = useState(false);
 
@@ -161,7 +189,6 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     setStartAtMs(saved?.startAtMs ?? Date.now());
     setSolved(false);
     setElapsedMs(null);
-    setTickNowMs(Date.now());
     setLeaderboard([]);
     setUserRank(null);
     setAttemptId(null);
@@ -185,14 +212,6 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     if (!Number.isFinite(parsed) || parsed <= 0) return;
     setBestTimeMs(parsed);
   }, [puzzle.id]);
-
-  useEffect(() => {
-    if (solved) return;
-    const id = window.setInterval(() => setTickNowMs(Date.now()), 1000);
-    return () => window.clearInterval(id);
-  }, [solved]);
-
-  const liveElapsedMs = !solved ? tickNowMs - startAtMs : elapsedMs;
 
   useEffect(() => {
     if (activeEntryNumber == null) return;
@@ -438,7 +457,6 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     const elapsed = Date.now() - startAtMs;
     setSolved(true);
     setElapsedMs(elapsed);
-    setTickNowMs(Date.now());
     localStorage.removeItem(progressKey(puzzle.id));
 
     const key = `dct-crosswords:bestTime:${puzzle.id}`;
@@ -600,9 +618,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
               justifyContent: 'flex-end',
             }}
           >
-            <div className="solverTimer" aria-live="polite">
-              {formatElapsedMs(liveElapsedMs ?? tickNowMs - startAtMs)}
-            </div>
+            <SolverTimer startAtMs={startAtMs} solved={solved} elapsedMs={elapsedMs} />
             {!solved && !isMobile ? (
               <button type="button" className="btn" onClick={solveInstantly}>
                 Solve it
