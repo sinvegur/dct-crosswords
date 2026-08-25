@@ -195,6 +195,10 @@ textarea {
   min-height: calc(14px * 1.35 * 2);
 }
 
+.clueBarBody[role='button'] {
+  cursor: pointer;
+}
+
 .clueBarLabel {
   flex-shrink: 0;
   font-family: var(--font-grid);

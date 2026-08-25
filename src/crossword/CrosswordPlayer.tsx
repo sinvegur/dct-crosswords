@@ -562,6 +562,27 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     focusCell(targetCell);
   };
 
+  // Mobile hides the separate Across/Down clue lists (no room), so the
+  // compact clue bar's tap-to-toggle-direction is the only way to switch
+  // direction on a cell shared by both an across and a down entry, mirroring
+  // the equivalent "tap the already-active cell" behavior on desktop.
+  const toggleActiveDirection = () => {
+    if (activeCellIndex == null || solved) return;
+    const { row, col } = posOf(size, activeCellIndex);
+    const acrossNum = computed.acrossEntryNumberByCell.get(keyOf(row, col));
+    const downNum = computed.downEntryNumberByCell.get(keyOf(row, col));
+    if (activeDirection === 'across' && downNum != null) {
+      setActiveDirection('down');
+      setActiveEntryNumber(downNum);
+    } else if (activeDirection === 'down' && acrossNum != null) {
+      setActiveDirection('across');
+      setActiveEntryNumber(acrossNum);
+    } else {
+      return;
+    }
+    focusCell(activeCellIndex);
+  };
+
   const isEntryFilled = (entry: Entry) =>
     entry.cells.every((c) => Boolean(filled[idxOf(size, c.row, c.col)]));
 
@@ -938,7 +959,12 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
               >
                 <ChevronLeft size={20} aria-hidden />
               </button>
-              <div className="clueBarBody">
+              <div
+                className="clueBarBody"
+                onClick={activeEntry ? toggleActiveDirection : undefined}
+                role={activeEntry ? 'button' : undefined}
+                aria-label={activeEntry ? 'Switch direction' : undefined}
+              >
                 {activeEntry ? (
                   <>
                     <span className="clueBarLabel">
