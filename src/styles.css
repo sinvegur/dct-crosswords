@@ -730,15 +730,10 @@ textarea {
 }
 
 @media (max-width: 860px) {
-  /* On cramped cells (15x15 puzzles specifically - mini/midi cells stay well
-     above this), the clue number badge competes with the letter for the
-     same few pixels. The clue bar already shows which numbered clue is
-     active, so drop the in-cell number here and give the letter the space. */
-  @container (max-width: 30px) {
-    .cellNumber {
-      display: none;
-    }
-  }
+  /* Whether the in-cell clue number badge shows on cramped cells (15x15
+     specifically) is now decided in JS (CrosswordPlayer's showCellNumbers,
+     based on a directly-measured pixel cell size) rather than a CSS
+     container query - see the comment there for why. */
 
   .page {
     padding: 10px;
@@ -803,6 +798,10 @@ textarea {
     container-type: inline-size;
   }
 
+  /* Fallback only - CrosswordPlayer sets an inline pixel width/height on
+     .grid once its ResizeObserver has measured .gridSlot, which overrides
+     this. Kept as the size for the brief window before that measurement
+     lands (and as a safety net if ResizeObserver is ever unavailable). */
   .solverGridPanel .grid {
     width: calc(100cqw - 24px);
     height: calc(100cqw - 24px);

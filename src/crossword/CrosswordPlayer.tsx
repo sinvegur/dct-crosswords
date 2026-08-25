@@ -99,9 +99,11 @@ type GridCellProps = {
   cellIndex: number;
   value: string;
   numAtCell: number | null;
+  showNumber: boolean;
   isActiveCell: boolean;
   isCurrentCell: boolean;
   isMobile: boolean;
+  fontSizePx: number | null;
   inputsRef: React.RefObject<Array<HTMLInputElement | null>>;
   onMouseDownCell: (cellIndex: number) => void;
   onPickCell: (cellIndex: number, opts?: { fromClick?: boolean }) => void;
@@ -114,9 +116,11 @@ const GridCell = memo(function GridCell({
   cellIndex,
   value,
   numAtCell,
+  showNumber,
   isActiveCell,
   isCurrentCell,
   isMobile,
+  fontSizePx,
   inputsRef,
   onMouseDownCell,
   onPickCell,
@@ -130,7 +134,7 @@ const GridCell = memo(function GridCell({
       onMouseDown={() => onMouseDownCell(cellIndex)}
       onClick={() => onPickCell(cellIndex, { fromClick: true })}
     >
-      {numAtCell != null ? <div className="cellNumber">{numAtCell}</div> : null}
+      {showNumber && numAtCell != null ? <div className="cellNumber">{numAtCell}</div> : null}
       <input
         ref={(el) => {
           inputsRef.current[cellIndex] = el;
@@ -140,6 +144,7 @@ const GridCell = memo(function GridCell({
         inputMode={isMobile ? 'none' : undefined}
         autoCorrect="off"
         spellCheck={false}
+        style={fontSizePx != null ? { fontSize: `${fontSizePx}px` } : undefined}
         onFocus={() => onFocusCell(cellIndex)}
         onChange={(e) => onChangeCell(cellIndex, e.target.value)}
         onKeyDown={(e) => onKeyDownCell(cellIndex, e)}
@@ -206,6 +211,30 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
   const clueRowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const clickStartedOnActiveCellRef = useRef(false);
   const skipNextFocusPickRef = useRef(false);
+
+  // Mobile grid sizing is measured directly in JS (ResizeObserver) rather
+  // than relying on CSS container queries (container-type/cqw/cqi) - can't
+  // confirm those behave identically on every real device, and a plain
+  // pixel measurement has no such ambiguity. Desktop keeps its existing
+  // cqmin-based CSS sizing, which hasn't shown this problem.
+  const gridSlotRef = useRef<HTMLDivElement | null>(null);
+  const [gridSlotPx, setGridSlotPx] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!isMobile) return;
+    const el = gridSlotRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width;
+      if (width) setGridSlotPx(width);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [isMobile]);
+
+  const cellPx = isMobile && gridSlotPx ? (gridSlotPx - 24) / size : null;
+  const fontSizePx = isMobile && cellPx ? Math.max(16, cellPx * 0.6) : null;
+  const showCellNumbers = !isMobile || cellPx == null || cellPx >= 30;
 
   const [activeDirection, setActiveDirection] = useState<Direction>('across');
   const [activeEntryNumber, setActiveEntryNumber] = useState<number | null>(null);
@@ -835,11 +864,21 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
                 <ChevronRight size={20} aria-hidden />
               </button>
             </div>
-            <div className="gridSlot">
+            <div className="gridSlot" ref={gridSlotRef}>
               <div
                 className="grid"
                 tabIndex={0}
-                style={{ '--grid-size': size } as CSSProperties}
+                style={
+                  {
+                    '--grid-size': size,
+                    ...(isMobile && cellPx
+                      ? {
+                          width: `${cellPx * size}px`,
+                          height: `${cellPx * size}px`,
+                        }
+                      : null),
+                  } as CSSProperties
+                }
                 onKeyDown={(e) => {
                   if (e.code === 'Space') {
                     e.preventDefault();
@@ -861,9 +900,11 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
                       cellIndex={cellIndex}
                       value={filled[cellIndex] ?? ''}
                       numAtCell={numAtCell}
+                      showNumber={showCellNumbers}
                       isActiveCell={activeEntryCellIndices.has(cellIndex)}
                       isCurrentCell={activeCellIndex === cellIndex}
                       isMobile={isMobile}
+                      fontSizePx={fontSizePx}
                       inputsRef={inputsRef}
                       onMouseDownCell={stableMouseDownCell}
                       onPickCell={stablePickCell}
