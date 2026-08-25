@@ -277,6 +277,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
       setActiveDirection('across');
       setActiveEntryNumber(firstAcross.number);
       setActiveCellIndex(targetCell);
+      focusCell(targetCell);
     } else {
       setActiveDirection('across');
       setActiveEntryNumber(null);
