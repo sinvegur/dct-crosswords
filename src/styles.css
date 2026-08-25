@@ -333,6 +333,10 @@ textarea {
   color: #111827;
 }
 
+.btn:hover:not(:disabled) {
+  background: #f3f4f6;
+}
+
 .btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
@@ -353,6 +357,11 @@ textarea {
   background: #111827;
   border-color: #111827;
   color: #ffffff;
+}
+
+.btnPrimary:hover:not(:disabled) {
+  background: #1f2937;
+  border-color: #1f2937;
 }
 
 .fieldBlock {
@@ -702,8 +711,13 @@ textarea {
 }
 
 .toolbarControl:disabled {
-  opacity: 0.6;
+  opacity: 0.4;
   cursor: not-allowed;
+  color: var(--muted);
+}
+
+.toolbarControl:hover:not(:disabled) {
+  background: #f3f4f6;
 }
 
 .toolbarGlyph {
@@ -718,6 +732,11 @@ textarea {
   background: #111827;
   border-color: #111827;
   color: #ffffff;
+}
+
+.toolbarControl.isActive:hover:not(:disabled) {
+  background: #1f2937;
+  border-color: #1f2937;
 }
 
 .toolbarSegment {

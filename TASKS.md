@@ -12,7 +12,7 @@ Task queue for handing work from Claude (planning/review) to Cursor (implementat
 
 ---
 
-## T043 — [TODO] Add hover states to buttons; make disabled Play/Leaderboard icons read as clearly non-interactive
+## T043 — [READY FOR REVIEW] Add hover states to buttons; make disabled Play/Leaderboard icons read as clearly non-interactive
 
 **Two related cosmetic fixes, both `styles.css` only, no JSX changes needed.**
 
@@ -44,15 +44,13 @@ Task queue for handing work from Claude (planning/review) to Cursor (implementat
 
 ```css
 .toolbarControl:disabled {
-  opacity: 0.35;
+  opacity: 0.4;
   cursor: not-allowed;
-  border-color: transparent;
-  background: transparent;
   color: var(--muted);
 }
 ```
 
-This replaces the existing `.toolbarControl:disabled` rule (currently just `opacity: 0.6; cursor: not-allowed;`) — don't leave both, the new rule supersedes it. Leave `.btn:disabled` (opacity 0.6) untouched — the user's complaint was specifically about the row-icon buttons, not `.btn`.
+This replaces the existing `.toolbarControl:disabled` rule (currently just `opacity: 0.6; cursor: not-allowed;`) — don't leave both, the new rule supersedes it. Leave `.btn:disabled` (opacity 0.6) untouched — the user's complaint was specifically about the row-icon buttons, not `.btn`. Keep the normal white background and border so disabled icons still sit in the same framed row as Edit/Delete; only the opacity/color should read as unavailable (user feedback: stripping the frame looked worse).
 
 **Verify:** on the puzzle list, hover over Edit/Delete/Play/Leaderboard on a **published** puzzle — all four should show the light hover tint. On a **draft** puzzle, Play and Leaderboard should look visually flat/borderless and clearly muted (no white box, no border) both at rest and on hover — hovering them should NOT show any hover tint, since they're disabled. Hover the top nav's Puzzles/New puzzle/Sign out buttons and confirm the tint appears, including on whichever one is currently `.btnPrimary` (the active page) — that one should darken slightly rather than getting the light tint. Open the puzzle designer and hover its buttons (Save, Publish, the Letter/Block mode toggles, Symmetry toggle, etc.) and confirm hover feedback there too, including the active-mode toggle button showing the darker hover variant instead of the light one.
 
