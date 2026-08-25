@@ -477,11 +477,12 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     setFilled(next);
     finishIfSolved(next);
 
+    if (!letter) return;
+
     const entry = resolveEntryAtCell(cellIndex, activeDirection);
     if (!entry) return;
 
-    if (!letter) moveInResolvedEntry(entry, cellIndex, -1);
-    else moveInResolvedEntry(entry, cellIndex, 1);
+    moveInResolvedEntry(entry, cellIndex, 1);
   };
 
   const handleKeyboardBackspace = () => {
