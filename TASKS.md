@@ -12,7 +12,7 @@ Task queue for handing work from Claude (planning/review) to Cursor (implementat
 
 ---
 
-## T049 — [TODO] Port solver's typing/navigation UX into the puzzle builder's letter mode
+## T049 — [READY FOR REVIEW] Port solver's typing/navigation UX into the puzzle builder's letter mode
 
 **Context:** `CrosswordPlayer.tsx` (solver) has accumulated a bunch of typing/navigation refinements over time — select-highlighted letter on focus so typing overwrites it, auto-advance to the next available cell (skipping already-filled ones, jumping to the next entry once one is complete), auto-jump-back-and-clear on backspace past an entry's start, Tab/Shift+Tab entry stepping (with a fallback so it never gets stuck once every cell has *something* in it), and a Turkish-keyboard "I" fix. None of this made it into `PuzzleDesigner.tsx`'s letter-entry mode (`editMode === 'letter'`), which still has an older, simpler version of the same functions. Bring it up to parity.
 

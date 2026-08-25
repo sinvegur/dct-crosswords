@@ -27,7 +27,9 @@ function posOf(size: number, index: number) {
 function normalizeLetter(raw: string) {
   const trimmed = raw.replace(/\s+/g, '');
   if (!trimmed) return '';
-  return trimmed[trimmed.length - 1].toLocaleUpperCase('tr-TR');
+  const ch = trimmed[trimmed.length - 1];
+  if (ch === 'i' || ch === 'I') return 'I';
+  return ch.toLocaleUpperCase('tr-TR');
 }
 
 function gridFromRows(rows: string[]): string[] {
@@ -272,7 +274,92 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
     return computed.entryByNumberDirection(resolvedDirection, entryNumber);
   };
 
+  const isEntryFilled = (entry: Entry) =>
+    entry.cells.every((c) => flat[idxOf(size, c.row, c.col)].trim() !== '');
+
+  const focusCell = (cellIndex: number) => {
+    const el = inputsRef.current[cellIndex];
+    if (!el) return;
+    el.focus();
+    el.select();
+    setActiveCellIndex(cellIndex);
+  };
+
+  const focusEntry = (direction: Direction, entryNumber: number) => {
+    if (!computed) return;
+    const entry = computed.entryByNumberDirection(direction, entryNumber);
+    if (!entry) return;
+    const entryIndices = entry.cells.map((c) => idxOf(size, c.row, c.col));
+    const targetCell =
+      entryIndices.find((idx) => flat[idx].trim() === '') ?? entryIndices[0]!;
+    setActiveDirection(direction);
+    setActiveEntryNumber(entryNumber);
+    setActiveCellIndex(targetCell);
+    focusCell(targetCell);
+  };
+
+  const stepEntry = (delta: 1 | -1) => {
+    if (!computed) return;
+    const combined = [
+      ...computed.entriesAcross.map((entry) => ({ direction: 'across' as const, entry })),
+      ...computed.entriesDown.map((entry) => ({ direction: 'down' as const, entry })),
+    ];
+    if (combined.length === 0) return;
+
+    const currentIdx =
+      activeEntryNumber == null
+        ? -1
+        : combined.findIndex(
+            (item) =>
+              item.direction === activeDirection && item.entry.number === activeEntryNumber,
+          );
+
+    let nextIdx: number;
+    if (currentIdx === -1) {
+      nextIdx = delta === 1 ? 0 : combined.length - 1;
+    } else {
+      nextIdx = currentIdx + delta;
+      if (nextIdx < 0) nextIdx = combined.length - 1;
+      if (nextIdx >= combined.length) nextIdx = 0;
+    }
+
+    const fallbackIdx = nextIdx;
+
+    for (let steps = 0; steps < combined.length; steps++) {
+      const item = combined[nextIdx]!;
+      if (!isEntryFilled(item.entry)) {
+        focusEntry(item.direction, item.entry.number);
+        return;
+      }
+      nextIdx += delta;
+      if (nextIdx < 0) nextIdx = combined.length - 1;
+      if (nextIdx >= combined.length) nextIdx = 0;
+    }
+
+    const fallback = combined[fallbackIdx]!;
+    focusEntry(fallback.direction, fallback.entry.number);
+  };
+
   const moveInResolvedEntry = (entry: Entry, from: number, delta: 1 | -1) => {
+    const indices = entry.cells.map((c) => idxOf(size, c.row, c.col));
+    const pos = indices.indexOf(from);
+    if (pos === -1) return;
+
+    let nextPos = pos + delta;
+    while (nextPos >= 0 && nextPos < indices.length - 1 && flat[indices[nextPos]!].trim() !== '') {
+      nextPos += delta;
+    }
+
+    const next = indices[nextPos];
+    if (next == null) {
+      if (delta === 1) stepEntry(1);
+      return;
+    }
+    pickCell(next);
+    focusCell(next);
+  };
+
+  const moveOneWithinEntry = (entry: Entry, from: number, delta: 1 | -1) => {
     const indices = entry.cells.map((c) => idxOf(size, c.row, c.col));
     const pos = indices.indexOf(from);
     if (pos === -1) return;
@@ -282,24 +369,52 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
     focusCell(next);
   };
 
+  const jumpToPreviousEntryEnd = (direction: Direction, entryNumber: number) => {
+    if (!computed) return;
+    const combined = [
+      ...computed.entriesAcross.map((entry) => ({ direction: 'across' as const, entry })),
+      ...computed.entriesDown.map((entry) => ({ direction: 'down' as const, entry })),
+    ];
+    const currentIdx = combined.findIndex(
+      (item) => item.direction === direction && item.entry.number === entryNumber,
+    );
+    if (currentIdx === -1) return;
+    const prevIdx = currentIdx === 0 ? combined.length - 1 : currentIdx - 1;
+    const target = combined[prevIdx]!;
+    const targetIndices = target.entry.cells.map((c) => idxOf(size, c.row, c.col));
+    const lastCell = targetIndices[targetIndices.length - 1]!;
+    setCellLetter(lastCell, '');
+    setActiveDirection(target.direction);
+    setActiveEntryNumber(target.entry.number);
+    setActiveCellIndex(lastCell);
+    focusCell(lastCell);
+  };
+
   const backspaceEmptyCell = (cellIndex: number) => {
     pickCell(cellIndex);
-    let entry = resolveEntryAtCell(cellIndex, activeDirection);
+    let direction: Direction = activeDirection;
+    let entry = resolveEntryAtCell(cellIndex, direction);
     if (!entry) return;
+    direction = entry.direction;
 
     let indices = entry.cells.map((c) => idxOf(size, c.row, c.col));
     let pos = indices.indexOf(cellIndex);
 
     if (pos === -1) {
-      entry = resolveEntryAtCell(cellIndex, activeDirection === 'across' ? 'down' : 'across');
+      direction = direction === 'across' ? 'down' : 'across';
+      entry = resolveEntryAtCell(cellIndex, direction);
       if (!entry) return;
+      direction = entry.direction;
       indices = entry.cells.map((c) => idxOf(size, c.row, c.col));
       pos = indices.indexOf(cellIndex);
       if (pos === -1) return;
       pickCell(cellIndex);
     }
 
-    if (pos === 0) return;
+    if (pos === 0) {
+      jumpToPreviousEntryEnd(direction, entry.number);
+      return;
+    }
 
     const prev = indices[pos - 1]!;
     setCellLetter(prev, '');
@@ -321,20 +436,20 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
     }
   };
 
-  const focusCell = (cellIndex: number) => {
-    inputsRef.current[cellIndex]?.focus();
-    setActiveCellIndex(cellIndex);
-  };
-
   const onCellChange = (cellIndex: number, raw: string) => {
     if (editMode === 'block') return;
     pickCell(cellIndex);
+    const wasEmpty = flat[cellIndex].trim() === '';
     const letter = normalizeLetter(raw);
     setCellLetter(cellIndex, letter);
+    if (!letter) return;
     const entry = resolveEntryAtCell(cellIndex, activeDirection);
     if (!entry) return;
-    if (letter) moveInResolvedEntry(entry, cellIndex, 1);
-    else moveInResolvedEntry(entry, cellIndex, -1);
+    if (wasEmpty) {
+      moveInResolvedEntry(entry, cellIndex, 1);
+    } else {
+      moveOneWithinEntry(entry, cellIndex, 1);
+    }
   };
 
   const onCellClick = (cellIndex: number) => {
@@ -775,6 +890,11 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
                       onChange={(e) => onCellChange(cellIndex, e.target.value)}
                       onKeyDown={(e) => {
                         if (editMode === 'block') return;
+                        if (e.key === 'Tab') {
+                          e.preventDefault();
+                          stepEntry(e.shiftKey ? -1 : 1);
+                          return;
+                        }
                         if (e.code === 'Space') {
                           e.preventDefault();
                           toggleDirection();
@@ -782,7 +902,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
                         }
                         if (e.key === 'Backspace') {
                           if (value) {
-                            // Let onChange clear current + move prev.
+                            // Let onChange clear current; stay put (no move).
                             return;
                           }
                           e.preventDefault();
