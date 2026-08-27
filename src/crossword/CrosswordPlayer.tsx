@@ -748,16 +748,6 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     setWrongCells(nextWrong);
   };
 
-  const solveInstantly = () => {
-    const nextFilled = filled.slice();
-    for (let i = 0; i < solutionChars.length; i++) {
-      if (blockSet.has(i)) continue;
-      nextFilled[i] = solutionChars[i]!;
-    }
-    setFilled(nextFilled);
-    finishIfSolved(nextFilled);
-  };
-
   const onCellInputChange = (cellIndex: number, raw: string) => {
     if (solved) return;
     if (blockSet.has(cellIndex)) return;
@@ -1028,11 +1018,6 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
                   Check
                 </button>
               )
-            ) : null}
-            {!solved && !isMobile ? (
-              <button type="button" className="btn" onClick={solveInstantly}>
-                Solve it
-              </button>
             ) : null}
           </div>
         </div>
