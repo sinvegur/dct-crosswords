@@ -321,6 +321,19 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     submittedRef.current = false;
   }, [puzzle.id, cellCount, computed, size]);
 
+  // Re-select the focused cell's letter after every edit. The inputs are
+  // maxLength=1, so once one holds a character an unselected caret sits
+  // *after* it and the browser silently rejects the next keystroke.
+  // focusCell selects on every move, which covered this while typing always
+  // advanced - but on a word's last square the cursor now deliberately stays
+  // put, so without this a second letter there would do nothing at all.
+  useEffect(() => {
+    const el = document.activeElement as HTMLInputElement | null;
+    if (!el || el.tagName !== 'INPUT') return;
+    if (!inputsRef.current.includes(el)) return;
+    el.select();
+  }, [filled]);
+
   useEffect(() => {
     if (solved) return;
     localStorage.setItem(

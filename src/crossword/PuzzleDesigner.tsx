@@ -572,6 +572,18 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
     baselineRef.current = snapshotFromState(title, rows, cluesAcross, cluesDown);
   }, [title, rows, cluesAcross, cluesDown]);
 
+  // Re-select the focused cell's letter after every edit. The inputs are
+  // maxLength=1, so once one holds a character an unselected caret sits
+  // *after* it and the browser silently rejects the next keystroke. Mirrors
+  // CrosswordPlayer - needed now that a word's last square keeps the cursor
+  // in place instead of advancing.
+  useEffect(() => {
+    const el = document.activeElement as HTMLInputElement | null;
+    if (!el || el.tagName !== 'INPUT') return;
+    if (!inputsRef.current.includes(el)) return;
+    el.select();
+  }, [rows]);
+
   useEffect(() => {
     registerGuard((proceed) => {
       if (!isDirtyRef.current) {
