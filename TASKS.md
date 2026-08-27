@@ -12,50 +12,6 @@ Task queue for handing work from Claude (planning/review) to Cursor (implementat
 
 ---
 
-## T054 — [READY FOR REVIEW] Let solvers switch between the leaderboard and the completed grid
-
-After solving, the results panel completely replaces the grid, so there's no way to look at the puzzle you just finished. Add a simple two-way switcher.
-
-Scope: `CrosswordPlayer.tsx` and `styles.css`. Works on desktop and mobile.
-
-**1. Structure.** Today the render is:
-
-```tsx
-{solved ? (
-  <div className="solverResults"> …leaderboard… </div>
-) : (
-  <div className="gridWrap"> …clue bar, grid, mobile keyboard… </div>
-)}
-```
-
-Add `const [resultsView, setResultsView] = useState<'leaderboard' | 'grid'>('leaderboard')`, and when `solved` is true show whichever the switcher selects. Default to `leaderboard`, so the current behaviour is what people see first.
-
-**Do not duplicate the grid JSX.** Pull the clue bar + grid into a variable (or small local component) rendered by both branches, so there's one copy to maintain. The grid is already effectively read-only when solved — `onCellInputChange` returns early on `solved` — so nothing needs disabling.
-
-**2. Keep the header fixed.** "Solved! 🎉" and "Your time: …" should stay visible in both views. Put the switcher directly beneath them; it swaps only the content below.
-
-**3. The mobile on-screen keyboard must not appear in the solved grid view.** It currently renders inside the grid branch, gated only on `isMobile`. Change that gate to `isMobile && !solved` — there's nothing to type, and it would eat most of the screen.
-
-**4. Suppress check styling in the completed grid.** A solved grid shows every letter correct, so the blue `.cellLocked` letters left over from earlier Check presses look arbitrary. When `solved` is true, don't apply `cellLocked` or `cellWrong` — render a clean finished grid.
-
-**5. The switcher itself.** Two buttons, labelled **Leaderboard** and **Puzzle**, styled as a segmented control. Reuse the existing `toolbarSegment` / `toolbarControl` pattern from `PuzzleDesigner.tsx` if it fits, rather than inventing a new visual language — but keep it text, not icons, since both options need to be unambiguous. Mark the active one with `aria-pressed`.
-
-It must fit the mobile width without wrapping or squeezing the grid. Check both a 5×5 mini and a 15×15 on a narrow viewport.
-
-**Testing:**
-- Solve a puzzle (the "Solve it" button is the fast way) on both desktop and mobile
-- The leaderboard shows first, exactly as it does today
-- Switching to Puzzle shows the completed grid, correctly sized, no on-screen keyboard on mobile
-- Switching back to Leaderboard restores the results, still showing your time and rank
-- The grid in this view is read-only — typing and the mobile keyboard can't alter it
-- Check a few squares *before* solving, then solve: the completed grid shows no leftover blue or red marks
-- Clue bar navigation (chevrons, tapping the clue) still behaves in the solved grid view, or is hidden — your call, but say which you chose in the implementation notes
-- Starting a different puzzle afterwards resets the view to Leaderboard
-
-**Implementation notes:** Grid is rendered once (`{!solved || resultsView === 'grid'}`) rather than duplicated. Clue bar is **hidden** in the solved puzzle view so the finished grid has more room (especially on mobile); desktop Across/Down lists still show clues. Check blue/red styling is suppressed while `solved`. Switcher uses its own text-segment styles (not `toolbarControl`) so labels aren't clipped by the 36px icon-button width.
-
----
-
 ## T046 — [BLOCKED, pending user confirmation] Mobile letter-clipping bug — likely fixed, awaiting real-device check
 
 **Not a Cursor task right now — do not pick this up.** Claude handled this directly (real-device-only bug, needed live iteration). Leaving a short record here rather than deleting, in case it resurfaces.
