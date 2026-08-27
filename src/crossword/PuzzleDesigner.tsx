@@ -394,7 +394,10 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
 
     const next = indices[nextPos];
     if (next == null) {
-      if (delta === 1) stepEntry(1);
+      // End of the entry: stay put. Typing on the last square overwrites it
+      // in place rather than carrying the cursor into the next clue - moving
+      // between entries is always deliberate (Tab, Space, arrows, click).
+      // Mirrors CrosswordPlayer.
       return;
     }
     pickCell(next);
@@ -409,27 +412,6 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
     if (next == null) return;
     pickCell(next);
     focusCell(next);
-  };
-
-  const jumpToPreviousEntryEnd = (direction: Direction, entryNumber: number) => {
-    if (!computed) return;
-    const combined = [
-      ...computed.entriesAcross.map((entry) => ({ direction: 'across' as const, entry })),
-      ...computed.entriesDown.map((entry) => ({ direction: 'down' as const, entry })),
-    ];
-    const currentIdx = combined.findIndex(
-      (item) => item.direction === direction && item.entry.number === entryNumber,
-    );
-    if (currentIdx === -1) return;
-    const prevIdx = currentIdx === 0 ? combined.length - 1 : currentIdx - 1;
-    const target = combined[prevIdx]!;
-    const targetIndices = target.entry.cells.map((c) => idxOf(size, c.row, c.col));
-    const lastCell = targetIndices[targetIndices.length - 1]!;
-    setCellLetter(lastCell, '');
-    setActiveDirection(target.direction);
-    setActiveEntryNumber(target.entry.number);
-    setActiveCellIndex(lastCell);
-    focusCell(lastCell);
   };
 
   const backspaceEmptyCell = (cellIndex: number) => {
@@ -453,10 +435,9 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
       pickCell(cellIndex);
     }
 
-    if (pos === 0) {
-      jumpToPreviousEntryEnd(direction, entry.number);
-      return;
-    }
+    // Already at the entry's first square - stop here rather than jumping
+    // into the previous clue.
+    if (pos === 0) return;
 
     const prev = indices[pos - 1]!;
     setCellLetter(prev, '');
