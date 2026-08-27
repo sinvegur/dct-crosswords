@@ -829,7 +829,12 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
 
   const handleKeyboardBackspace = () => {
     if (activeCellIndex == null || solved) return;
-    if (lockedCells.has(activeCellIndex) && filled[activeCellIndex]) return;
+    // Same as the physical-keyboard path: from a locked cell, walk back to
+    // the nearest deletable one rather than doing nothing at all.
+    if (lockedCells.has(activeCellIndex)) {
+      backspaceEmptyCell(activeCellIndex);
+      return;
+    }
     if (filled[activeCellIndex]) {
       onCellInputChange(activeCellIndex, '');
     } else {
@@ -906,7 +911,12 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
       }
       if (e.key === 'Backspace') {
         if (lockedCells.has(cellIndex)) {
+          // Don't just swallow the key: a locked cell can't be cleared, so
+          // sitting here doing nothing leaves the cursor visibly stuck.
+          // Fall back to the walk-back, which skips locked cells and lands
+          // on the first one that can actually be deleted.
           e.preventDefault();
+          backspaceEmptyCell(cellIndex);
           return;
         }
         if (filled[cellIndex]) {
