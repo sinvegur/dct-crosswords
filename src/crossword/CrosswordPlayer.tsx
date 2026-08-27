@@ -938,11 +938,6 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
       <div className="panel solverCluePanel">
         <div className="panelHeader">Down</div>
         <div className="clues cluesScroll">
-          {bestTimeMs != null && !solved ? (
-            <div className="directionHeader">
-              <span className="hint">Best: {formatElapsedMs(bestTimeMs)}</span>
-            </div>
-          ) : null}
           {computed.entriesDown.map((e) => {
             const isActive = activeDirection === 'down' && activeEntryNumber === e.number;
             const clue = puzzle.clues.down[e.number] ?? '';
@@ -1028,6 +1023,9 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
               <div className="title">Solved! 🎉</div>
               <div className="subtle">
                 Your time: <strong>{elapsedMs != null ? formatElapsedMs(elapsedMs) : '—'}</strong>
+                {bestTimeMs != null && elapsedMs != null && bestTimeMs < elapsedMs ? (
+                  <> · Your best: <strong>{formatElapsedMs(bestTimeMs)}</strong></>
+                ) : null}
               </div>
               <div className="resultsViewSwitch" role="group" aria-label="Results view">
                 <button
