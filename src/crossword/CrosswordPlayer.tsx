@@ -330,11 +330,17 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
   // advanced - but on a word's last square the cursor now deliberately stays
   // put, so without this a second letter there would do nothing at all.
   useEffect(() => {
+    // Desktop only. On mobile, letters come from the on-screen keyboard via
+    // handleKeyboardLetter, which calls onCellInputChange directly and never
+    // touches the DOM input - so maxLength can't block anything and there is
+    // nothing to work around. Selecting there only makes iOS paint its own
+    // selection box over the letter, which ::selection can't suppress.
+    if (isMobile) return;
     const el = document.activeElement as HTMLInputElement | null;
     if (!el || el.tagName !== 'INPUT') return;
     if (!inputsRef.current.includes(el)) return;
     el.select();
-  }, [filled]);
+  }, [filled, isMobile]);
 
   useEffect(() => {
     if (solved) return;
@@ -417,7 +423,10 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     // next keystroke instead of overwriting. Selecting the (0 or 1 char)
     // content means typing immediately replaces it, same as any normal
     // text input.
-    el.select();
+    // Desktop only: mobile input bypasses the DOM input entirely (see the
+    // re-select effect), and selecting there just makes iOS draw a grey
+    // selection box over the letter.
+    if (!isMobile) el.select();
     el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   };
 
