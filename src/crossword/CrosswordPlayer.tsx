@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { CheckCheck, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Puzzle } from './types';
+import { findClueLinkGroup, sanitizeClueLinks } from './types';
 import { type Direction, type Entry, computeEntries } from './engine';
 import {
   getAttemptRank,
@@ -112,6 +113,7 @@ type GridCellProps = {
   isCurrentCell: boolean;
   isLocked: boolean;
   isWrong: boolean;
+  isLinked: boolean;
   isMobile: boolean;
   fontSizePx: number | null;
   inputsRef: React.RefObject<Array<HTMLInputElement | null>>;
@@ -131,6 +133,7 @@ const GridCell = memo(function GridCell({
   isCurrentCell,
   isLocked,
   isWrong,
+  isLinked,
   isMobile,
   fontSizePx,
   inputsRef,
@@ -142,9 +145,9 @@ const GridCell = memo(function GridCell({
 }: GridCellProps) {
   return (
     <div
-      className={`cell ${isActiveCell ? 'cellActive' : ''} ${isCurrentCell ? 'cellCurrent' : ''} ${
-        isLocked ? 'cellLocked' : ''
-      } ${isWrong ? 'cellWrong' : ''}`}
+      className={`cell ${isLinked ? 'cellLinked' : ''} ${isActiveCell ? 'cellActive' : ''} ${
+        isCurrentCell ? 'cellCurrent' : ''
+      } ${isLocked ? 'cellLocked' : ''} ${isWrong ? 'cellWrong' : ''}`}
       onMouseDown={() => onMouseDownCell(cellIndex)}
       onClick={() => onPickCell(cellIndex, { fromClick: true })}
     >
@@ -270,6 +273,37 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     if (!activeEntry) return new Set<number>();
     return new Set(activeEntry.cells.map((c) => idxOf(size, c.row, c.col)));
   }, [activeEntry, size]);
+
+  const validLinks = useMemo(
+    () => sanitizeClueLinks(puzzle.clues.links, computed.allEntries),
+    [puzzle.clues.links, computed],
+  );
+
+  const linkedCellIndices = useMemo(() => {
+    const set = new Set<number>();
+    if (solved || activeEntryNumber == null) return set;
+    const group = findClueLinkGroup(validLinks, activeDirection, activeEntryNumber);
+    if (!group) return set;
+    for (const member of group) {
+      if (member.direction === activeDirection && member.number === activeEntryNumber) continue;
+      const entry = computed.entryByNumberDirection(member.direction, member.number);
+      if (!entry) continue;
+      for (const cell of entry.cells) {
+        const idx = idxOf(size, cell.row, cell.col);
+        if (activeEntryCellIndices.has(idx)) continue;
+        set.add(idx);
+      }
+    }
+    return set;
+  }, [
+    solved,
+    computed,
+    validLinks,
+    activeDirection,
+    activeEntryNumber,
+    activeEntryCellIndices,
+    size,
+  ]);
 
   const [startAtMs, setStartAtMs] = useState(() => {
     const saved = loadProgress(puzzle.id, cellCount);
@@ -1180,6 +1214,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
                       isCurrentCell={!solved && activeCellIndex === cellIndex}
                       isLocked={!solved && lockedCells.has(cellIndex)}
                       isWrong={!solved && wrongCells.has(cellIndex)}
+                      isLinked={!solved && linkedCellIndices.has(cellIndex)}
                       isMobile={isMobile}
                       fontSizePx={fontSizePx}
                       inputsRef={inputsRef}

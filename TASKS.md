@@ -12,7 +12,7 @@ Task queue for handing work from Claude (planning/review) to Cursor (implementat
 
 ---
 
-## T055 — [TODO] Replace Shuffle with "link clues"; tint linked squares in both grids
+## T055 — [READY FOR REVIEW] Replace Shuffle with "link clues"; tint linked squares in both grids
 
 Shuffle picks a different starting template, but every size now ships exactly one template, so it does nothing useful. Remove it and use the toolbar slot for linked clues instead — the NYT "With 17-Across, …" pattern, for multi-part or themed answers.
 
@@ -76,6 +76,8 @@ When the active entry belongs to a link group, the **grid squares** of the other
 - Delete a linked entry by adding black squares, then save and reopen — no crash, the stale link is gone
 - An older puzzle with no `links` key opens and plays normally
 - Nothing named Shuffle remains anywhere in the codebase
+
+**Implementation notes:** `savePuzzle` already persists `puzzle.clues` wholesale (`clues: puzzle.clues`) — no storage.ts change. Stale/undersized groups are dropped via `sanitizeClueLinks` on save and when tinting. README shuffle line removed so nothing named Shuffle remains in app code (this task text still says it until the entry is deleted). Linking helpers live in `types.ts`.
 
 ---
 

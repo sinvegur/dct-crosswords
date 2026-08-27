@@ -9,6 +9,7 @@
   --cell-bg: #ffffff;
   --cell-bg-active: #fff7ed;
   --cell-bg-current: #fde047;
+  --cell-bg-linked: #eef2ff;
   --font-display: 'Fraunces Variable', ui-serif, Georgia, serif;
   --font-body: 'Literata Variable', ui-serif, Georgia, serif;
   --font-grid: 'Atkinson Hyperlegible Next', ui-sans-serif, system-ui, sans-serif;
@@ -360,6 +361,11 @@ textarea {
   border-left-color: #f59e0b;
 }
 
+.clueLinkPicked {
+  background: #fffbeb;
+  border-left-color: #f59e0b;
+}
+
 .gridWrap {
   padding: 12px;
 }
@@ -442,6 +448,10 @@ textarea {
   color: #111827;
   pointer-events: none;
   z-index: 2;
+}
+
+.cellLinked {
+  background: var(--cell-bg-linked);
 }
 
 .cellActive {

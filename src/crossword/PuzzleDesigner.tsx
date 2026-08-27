@@ -1,17 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { Redo2, Shuffle, Undo2 } from 'lucide-react';
-import { ShuffleConfirmModal } from '@/components/ShuffleConfirmModal';
+import { Link2, Redo2, Undo2, Unlink2 } from 'lucide-react';
+import { UnlinkCluesConfirmModal } from '@/components/UnlinkCluesConfirmModal';
 import { UnsavedChangesModal } from '@/components/UnsavedChangesModal';
-import {
-  templatesForSize,
-  mirrorPos,
-  templateToEmptySolution,
-  type StartingGridId,
-  type Template,
-} from '@/data/templates';
+import { mirrorPos, templateToEmptySolution, type Template } from '@/data/templates';
 import { registerGuard, runGuarded, unregisterGuard } from '@/lib/navigationGuard';
 import { SIZE_15, computeEntries, type Direction, type Entry } from './engine';
-import type { Puzzle } from './types';
+import {
+  clueLinkKey,
+  findClueLinkGroup,
+  sanitizeClueLinks,
+  type ClueLinkMember,
+  type Puzzle,
+} from './types';
 
 const TOOLBAR_ICON_SIZE = 16;
 
@@ -52,6 +52,7 @@ type DesignerSnapshot = {
   rows: string[];
   cluesAcross: Record<number, string>;
   cluesDown: Record<number, string>;
+  links: ClueLinkMember[][];
 };
 
 function initialRows(initial?: Puzzle, startingTemplate?: Template): string[] {
@@ -65,12 +66,14 @@ function snapshotFromState(
   rows: string[],
   cluesAcross: Record<number, string>,
   cluesDown: Record<number, string>,
+  links: ClueLinkMember[][],
 ): DesignerSnapshot {
   return {
     title,
     rows: [...rows],
     cluesAcross: { ...cluesAcross },
     cluesDown: { ...cluesDown },
+    links: links.map((group) => group.map((member) => ({ ...member }))),
   };
 }
 
@@ -82,34 +85,8 @@ function snapshotsEqual(a: DesignerSnapshot, b: DesignerSnapshot): boolean {
   }
   if (JSON.stringify(a.cluesAcross) !== JSON.stringify(b.cluesAcross)) return false;
   if (JSON.stringify(a.cluesDown) !== JSON.stringify(b.cluesDown)) return false;
+  if (JSON.stringify(a.links) !== JSON.stringify(b.links)) return false;
   return true;
-}
-
-function hasDesignerProgress(
-  rows: string[],
-  cluesAcross: Record<number, string>,
-  cluesDown: Record<number, string>,
-) {
-  for (const row of rows) {
-    for (const ch of row) {
-      if (ch !== '#' && ch.trim() !== '') return true;
-    }
-  }
-  for (const text of Object.values(cluesAcross)) {
-    if (text.trim()) return true;
-  }
-  for (const text of Object.values(cluesDown)) {
-    if (text.trim()) return true;
-  }
-  return false;
-}
-
-function pickShuffleTemplate(excludeId: StartingGridId | null, size: number): Template | null {
-  const patterned = templatesForSize(size).filter((t) => t.id !== 'blank');
-  if (patterned.length === 0) return null;
-  const pool = patterned.filter((t) => t.id !== excludeId);
-  const choices = pool.length > 0 ? pool : patterned;
-  return choices[Math.floor(Math.random() * choices.length)]!;
 }
 
 type Props = {
@@ -127,6 +104,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
       initialRows(initial, startingTemplate),
       initial?.clues.across ?? {},
       initial?.clues.down ?? {},
+      initial?.clues.links ?? [],
     ),
   );
 
@@ -136,11 +114,8 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
   const [symmetry, setSymmetry] = useState(
     () => startingTemplate?.defaultSymmetry ?? false,
   );
-  const [lastShuffledTemplateId, setLastShuffledTemplateId] = useState<StartingGridId | null>(
-    () => (startingTemplate && startingTemplate.id !== 'blank' ? startingTemplate.id : null),
-  );
-  const [shuffleConfirmOpen, setShuffleConfirmOpen] = useState(false);
   const [unsavedModalOpen, setUnsavedModalOpen] = useState(false);
+  const [unlinkConfirmOpen, setUnlinkConfirmOpen] = useState(false);
   const pendingProceedRef = useRef<(() => void) | null>(null);
 
   const [activeDirection, setActiveDirection] = useState<Direction>('across');
@@ -153,6 +128,9 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
   const [cluesDown, setCluesDown] = useState<Record<number, string>>(
     () => initial?.clues.down ?? {},
   );
+  const [links, setLinks] = useState<ClueLinkMember[][]>(() => initial?.clues.links ?? []);
+  const [linkingMode, setLinkingMode] = useState(false);
+  const [linkSelection, setLinkSelection] = useState<ClueLinkMember[]>([]);
 
   const [history, setHistory] = useState<{ past: DesignerSnapshot[]; future: DesignerSnapshot[] }>(
     { past: [], future: [] },
@@ -163,7 +141,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
 
   const pushHistory = () => {
     setHistory((h) => ({
-      past: [...h.past, snapshotFromState(title, rows, cluesAcross, cluesDown)].slice(-100),
+      past: [...h.past, snapshotFromState(title, rows, cluesAcross, cluesDown, links)].slice(-100),
       future: [],
     }));
   };
@@ -173,6 +151,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
     setRows(s.rows);
     setCluesAcross(s.cluesAcross);
     setCluesDown(s.cluesDown);
+    setLinks(s.links);
   };
 
   // Note: applySnapshot must be called OUTSIDE the setHistory updater.
@@ -180,7 +159,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
   // catch exactly this - a setState side effect nested inside another one.
   const undo = () => {
     if (history.past.length === 0) return;
-    const current = snapshotFromState(title, rows, cluesAcross, cluesDown);
+    const current = snapshotFromState(title, rows, cluesAcross, cluesDown, links);
     const previous = history.past[history.past.length - 1]!;
     applySnapshot(previous);
     setHistory((h) => ({
@@ -191,34 +170,13 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
 
   const redo = () => {
     if (history.future.length === 0) return;
-    const current = snapshotFromState(title, rows, cluesAcross, cluesDown);
+    const current = snapshotFromState(title, rows, cluesAcross, cluesDown, links);
     const next = history.future[0]!;
     applySnapshot(next);
     setHistory((h) => ({
       past: [...h.past, current].slice(-100),
       future: h.future.slice(1),
     }));
-  };
-
-  const applyShuffle = () => {
-    const nextTemplate = pickShuffleTemplate(lastShuffledTemplateId, rows.length);
-    if (!nextTemplate) return;
-    pushHistory();
-    setRows(templateToEmptySolution(nextTemplate));
-    setCluesAcross({});
-    setCluesDown({});
-    setLastShuffledTemplateId(nextTemplate.id);
-    setActiveEntryNumber(null);
-    setActiveCellIndex(null);
-    setShuffleConfirmOpen(false);
-  };
-
-  const requestShuffle = () => {
-    if (hasDesignerProgress(rows, cluesAcross, cluesDown)) {
-      setShuffleConfirmOpen(true);
-      return;
-    }
-    applyShuffle();
   };
 
   const size = rows.length;
@@ -240,6 +198,71 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
     if (!activeEntry) return new Set<number>();
     return new Set(activeEntry.cells.map((c) => idxOf(size, c.row, c.col)));
   }, [activeEntry, size]);
+
+  const validLinks = useMemo(
+    () => sanitizeClueLinks(links, computed?.allEntries ?? []),
+    [links, computed],
+  );
+
+  const linkedCellIndices = useMemo(() => {
+    const set = new Set<number>();
+    if (!computed || activeEntryNumber == null) return set;
+    const group = findClueLinkGroup(validLinks, activeDirection, activeEntryNumber);
+    if (!group) return set;
+    for (const member of group) {
+      if (member.direction === activeDirection && member.number === activeEntryNumber) continue;
+      const entry = computed.entryByNumberDirection(member.direction, member.number);
+      if (!entry) continue;
+      for (const cell of entry.cells) {
+        const idx = idxOf(size, cell.row, cell.col);
+        if (activeEntryCellIndices.has(idx)) continue;
+        set.add(idx);
+      }
+    }
+    return set;
+  }, [computed, validLinks, activeDirection, activeEntryNumber, activeEntryCellIndices, size]);
+
+  const exitLinkingMode = () => {
+    setLinkingMode(false);
+    setLinkSelection([]);
+  };
+
+  const toggleLinkSelection = (direction: Direction, number: number) => {
+    const key = clueLinkKey({ direction, number });
+    setLinkSelection((prev) => {
+      if (prev.some((member) => clueLinkKey(member) === key)) {
+        return prev.filter((member) => clueLinkKey(member) !== key);
+      }
+      return [...prev, { direction, number }];
+    });
+  };
+
+  const onLinkButton = () => {
+    if (!linkingMode) {
+      setLinkingMode(true);
+      setLinkSelection([]);
+      return;
+    }
+    if (linkSelection.length < 2) {
+      exitLinkingMode();
+      return;
+    }
+    pushHistory();
+    const selectedKeys = new Set(linkSelection.map(clueLinkKey));
+    const next = links
+      .map((group) => group.filter((member) => !selectedKeys.has(clueLinkKey(member))))
+      .filter((group) => group.length >= 2);
+    next.push(linkSelection.map((member) => ({ ...member })));
+    setLinks(next);
+    exitLinkingMode();
+  };
+
+  const confirmUnlinkAll = () => {
+    pushHistory();
+    setLinks([]);
+    setUnlinkConfirmOpen(false);
+    exitLinkingMode();
+  };
 
   const flat = useMemo(() => rowsToFlat(solutionGrid), [solutionGrid]);
 
@@ -565,18 +588,18 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
   const isDirty = useMemo(
     () =>
       !snapshotsEqual(
-        snapshotFromState(title, rows, cluesAcross, cluesDown),
+        snapshotFromState(title, rows, cluesAcross, cluesDown, links),
         baselineRef.current,
       ),
-    [title, rows, cluesAcross, cluesDown],
+    [title, rows, cluesAcross, cluesDown, links],
   );
 
   const isDirtyRef = useRef(isDirty);
   isDirtyRef.current = isDirty;
 
   const updateBaseline = useCallback(() => {
-    baselineRef.current = snapshotFromState(title, rows, cluesAcross, cluesDown);
-  }, [title, rows, cluesAcross, cluesDown]);
+    baselineRef.current = snapshotFromState(title, rows, cluesAcross, cluesDown, links);
+  }, [title, rows, cluesAcross, cluesDown, links]);
 
   // Re-select the focused cell's letter after every edit. The inputs are
   // maxLength=1, so once one holds a character an unselected caret sits
@@ -614,6 +637,11 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && linkingMode && !unlinkConfirmOpen) {
+        e.preventDefault();
+        exitLinkingMode();
+        return;
+      }
       if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'z') return;
       const active = document.activeElement;
       if (active instanceof Node && cluePanelRef.current?.contains(active)) return;
@@ -623,7 +651,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [title, rows, cluesAcross, cluesDown, history]);
+  }, [title, rows, cluesAcross, cluesDown, links, history, linkingMode, unlinkConfirmOpen]);
 
   const buildPuzzle = (status: 'draft' | 'published'): Puzzle | null => {
     if (status === 'published' && !canPublish) return null;
@@ -648,7 +676,11 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
       title: title.trim() || 'Untitled',
       size,
       solutionGrid: cleanGrid,
-      clues: { across: cluesAcross, down: cluesDown },
+      clues: {
+        across: cluesAcross,
+        down: cluesDown,
+        ...(validLinks.length > 0 ? { links: validLinks } : {}),
+      },
       meta: {
         createdBy: initial?.meta?.createdBy ?? 'local',
         createdAtISO: initial?.meta?.createdAtISO ?? new Date().toISOString(),
@@ -728,11 +760,18 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
             </div>
             {computed?.entriesAcross.map((e) => {
               const isActive = activeDirection === 'across' && activeEntryNumber === e.number;
+              const isLinkPicked =
+                linkingMode &&
+                linkSelection.some((member) => member.direction === 'across' && member.number === e.number);
               return (
                 <div
                   key={`a-${e.number}`}
-                  className={`clueEdit ${isActive ? 'clueActive' : ''}`}
+                  className={`clueEdit ${isActive ? 'clueActive' : ''} ${isLinkPicked ? 'clueLinkPicked' : ''}`}
                   onClick={() => {
+                    if (linkingMode) {
+                      toggleLinkSelection('across', e.number);
+                      return;
+                    }
                     setActiveDirection('across');
                     setActiveEntryNumber(e.number);
                     focusCell(idxOf(size, e.start.row, e.start.col));
@@ -763,11 +802,18 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
             </div>
             {computed?.entriesDown.map((e) => {
               const isActive = activeDirection === 'down' && activeEntryNumber === e.number;
+              const isLinkPicked =
+                linkingMode &&
+                linkSelection.some((member) => member.direction === 'down' && member.number === e.number);
               return (
                 <div
                   key={`d-${e.number}`}
-                  className={`clueEdit ${isActive ? 'clueActive' : ''}`}
+                  className={`clueEdit ${isActive ? 'clueActive' : ''} ${isLinkPicked ? 'clueLinkPicked' : ''}`}
                   onClick={() => {
+                    if (linkingMode) {
+                      toggleLinkSelection('down', e.number);
+                      return;
+                    }
                     setActiveDirection('down');
                     setActiveEntryNumber(e.number);
                     focusCell(idxOf(size, e.start.row, e.start.col));
@@ -885,17 +931,24 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
 
           <button
             type="button"
-            className="toolbarControl"
-            aria-label="Shuffle grid layout"
-            title={
-              templatesForSize(size).some((t) => t.id !== 'blank')
-                ? 'Shuffle grid layout'
-                : 'No other layouts for this size'
-            }
-            disabled={!templatesForSize(size).some((t) => t.id !== 'blank')}
-            onClick={requestShuffle}
+            className={`toolbarControl ${linkingMode ? 'isActive' : ''}`}
+            aria-label="Link clues"
+            title="Link clues"
+            aria-pressed={linkingMode}
+            onClick={onLinkButton}
           >
-            <Shuffle size={TOOLBAR_ICON_SIZE} aria-hidden />
+            <Link2 size={TOOLBAR_ICON_SIZE} aria-hidden />
+          </button>
+
+          <button
+            type="button"
+            className="toolbarControl"
+            aria-label="Remove all clue links"
+            title="Remove all clue links"
+            disabled={validLinks.length === 0}
+            onClick={() => setUnlinkConfirmOpen(true)}
+          >
+            <Unlink2 size={TOOLBAR_ICON_SIZE} aria-hidden />
           </button>
         </div>
 
@@ -912,6 +965,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
               const isBlock = ch === '#';
               const value = isBlock || ch.trim() === '' ? '' : ch;
               const isActive = !isBlock && activeEntryCellIndices.has(cellIndex);
+              const isLinked = !isBlock && !isActive && linkedCellIndices.has(cellIndex);
               // The single square the cursor is on, distinct from the whole
               // highlighted entry. CrosswordPlayer has always drawn this;
               // the designer never did, which made arrow-key movement
@@ -922,9 +976,9 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
               return (
                 <div
                   key={cellIndex}
-                  className={`cell ${isBlock ? 'block' : ''} ${isActive ? 'cellActive' : ''} ${
-                    isCurrent ? 'cellCurrent' : ''
-                  } ${isBlock ? 'cellClickable' : ''}`}
+                  className={`cell ${isBlock ? 'block' : ''} ${isLinked ? 'cellLinked' : ''} ${
+                    isActive ? 'cellActive' : ''
+                  } ${isCurrent ? 'cellCurrent' : ''} ${isBlock ? 'cellClickable' : ''}`}
                   onClick={() => onCellClick(cellIndex)}
                 >
                   {!isBlock && numAtCell != null ? (
@@ -1000,7 +1054,11 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
           </div>
 
           <div className="statusBar">
-            {incompleteEntries.length > 0 ? (
+            {linkingMode ? (
+              <span className="hint">
+                Select 2 or more clues to link, then press Link again to confirm.
+              </span>
+            ) : incompleteEntries.length > 0 ? (
               <span className="hint">
                 Incomplete answers: {incompleteEntries.length} entries — fill every letter before
                 saving.
@@ -1027,10 +1085,10 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
         onSaveDraftAndLeave={() => void handleSaveDraftAndLeave()}
       />
 
-      <ShuffleConfirmModal
-        open={shuffleConfirmOpen}
-        onClose={() => setShuffleConfirmOpen(false)}
-        onConfirm={applyShuffle}
+      <UnlinkCluesConfirmModal
+        open={unlinkConfirmOpen}
+        onClose={() => setUnlinkConfirmOpen(false)}
+        onConfirm={confirmUnlinkAll}
       />
     </div>
   );

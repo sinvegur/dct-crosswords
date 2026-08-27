@@ -12,7 +12,7 @@ Built as a personal project, with full Turkish character support (İ/ı, Ğ, Ş,
 
 **Creator (signed in)**
 - Grid designer: click-to-toggle blocks, letter entry, optional 180° rotational symmetry
-- Start from a template (a few preset block layouts, or a blank grid) or shuffle for a fresh layout
+- Start from a template (a few preset block layouts, or a blank grid)
 - Draft/publish workflow — drafts are only visible to the signed-in creator; publishing generates a shareable slug (`/p/your-puzzle-title`)
 - Per-puzzle leaderboard view from the dashboard, showing every solver's name and time
 
