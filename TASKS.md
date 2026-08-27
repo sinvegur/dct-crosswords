@@ -12,6 +12,81 @@ Task queue for handing work from Claude (planning/review) to Cursor (implementat
 
 ---
 
+## T053 — [TODO] "Check" in the solver: lock correct letters, mark wrong ones
+
+Solver-side feature, modelled on the NYT crossword. The user presses **Check**; every filled square is compared against the solution:
+
+- **Correct** → the letter turns **blue** and the square is **locked**. It can no longer be typed over or deleted, for the rest of the solve.
+- **Wrong** → the square gets a **red diagonal slash** through it (NYT's marker). It stays fully editable.
+- **Empty** squares are untouched — neither locked nor marked.
+
+Scope: `CrosswordPlayer.tsx` and `styles.css` only. Don't touch `PuzzleDesigner.tsx`.
+
+**1. State.** Two sets of cell indices:
+
+```tsx
+const [lockedCells, setLockedCells] = useState<Set<number>>(new Set());
+const [wrongCells, setWrongCells] = useState<Set<number>>(new Set());
+```
+
+`runCheck()` walks every non-block cell that has a letter, compares `filled[i]` to `solutionChars[i]`, and adds it to one set or the other. Locked is **cumulative** — a later check never unlocks a square.
+
+**2. Wrong marks clear on edit, locks never do.** As soon as the user types into or deletes a wrong-marked square, remove it from `wrongCells`. They only reappear on the next Check. Locked squares are permanent for the session.
+
+**3. Locked squares must be genuinely immovable.** This is the fiddly part — there are several paths that write to a cell, and *all* need the guard:
+
+- `onCellInputChange` — ignore any input on a locked cell
+- `backspaceEmptyCell` — must not clear a locked cell, and must not clear one during its jump-to-previous-entry cascade
+- `handleKeyboardBackspace` — the mobile on-screen backspace, same rule
+- `jumpToPreviousEntryEnd` — it clears the previous entry's last cell; skip that clear if locked (still navigate there)
+- `moveInResolvedEntry` — already skips filled cells when auto-advancing; locked cells are filled, so this should work already, but confirm typing flows past them naturally
+
+Do **not** make locked cells unfocusable — the user should still be able to select and read them, and arrow/Tab navigation must still pass through them normally. They're read-only, not skipped-over.
+
+**4. Persist locks.** Progress is already saved as `{ filled, startAtMs }` under `progressKey(puzzle.id)`. Add `locked` as an array of indices, and restore it in `loadProgress`. Treat it as optional — `loadProgress` currently validates `filled` and `startAtMs` only, and older saves without `locked` must keep loading fine (default to empty). Don't persist `wrongCells`; those are transient by design.
+
+**5. The button — desktop and mobile.**
+
+The `controlsRow` already has an actions area holding the timer and a `!isMobile`-gated "Solve it" button. Put Check in that same container so no layout is disturbed:
+- **Desktop:** a normal `btn` labelled "Check", next to "Solve it"
+- **Mobile:** the same action as a compact icon-only button (use `CheckCheck` from `lucide-react`, sized like the existing toolbar icons) with `aria-label="Check puzzle"`, so it fits beside the timer in the compact row
+
+Hide it once `solved` is true, matching how "Solve it" behaves.
+
+**Do NOT add a Check key to the on-screen keyboard.** Its rows must stay a plain QWERTY layout — no reordering, no compressing letters to make room. That's a standing rule from earlier feedback.
+
+**6. CSS in `styles.css`.** Two new cell states, both of which must sit *on top of* the existing `.cellActive` / `.cellCurrent` background highlights rather than fighting them:
+
+```css
+.cellLocked input { color: #1d4ed8; }   /* blue, correct + locked */
+
+.cellWrong { position: relative; }
+.cellWrong::after {                      /* red slash, NYT-style */
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom right, transparent 46%, #dc2626 46%, #dc2626 54%, transparent 54%);
+  pointer-events: none;
+}
+```
+Check `.cell` doesn't already set `position` in a way that breaks this, and make sure the slash sits above the cell background but below the letter and the cell number.
+
+**Note on the leaderboard:** "Solve it" already fills the whole grid and submits a time, so Check doesn't open any new hole in leaderboard integrity. Don't add any "used check" tracking as part of this task.
+
+**Testing — desktop and mobile:**
+- Fill some squares correctly and some wrongly, press Check: correct ones turn blue, wrong ones get a red slash, empty ones are untouched
+- Try to overwrite a blue square by typing — nothing happens
+- Try to delete a blue square with Backspace, and with the mobile on-screen backspace — nothing happens
+- Backspace from the start of an entry into a *locked* previous entry: it should navigate there but not clear the letter
+- Type over a red-slashed square: the slash disappears immediately
+- Press Check again after fixing: newly-correct squares turn blue and lock
+- Arrow keys and Tab still move through locked squares normally
+- Reload the page mid-solve: blue locked squares are still blue and still locked
+- The button is reachable on mobile without the controls row wrapping or the grid shrinking
+- A puzzle solved normally still completes, times, and posts to the leaderboard as before
+
+---
+
 ## T046 — [BLOCKED, pending user confirmation] Mobile letter-clipping bug — likely fixed, awaiting real-device check
 
 **Not a Cursor task right now — do not pick this up.** Claude handled this directly (real-device-only bug, needed live iteration). Leaving a short record here rather than deleting, in case it resurfaces.
