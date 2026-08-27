@@ -473,6 +473,30 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
     }
   };
 
+  const moveByArrow = (direction: Direction, delta: 1 | -1) => {
+    if (activeCellIndex == null || !computed) return;
+    const { row, col } = posOf(size, activeCellIndex);
+
+    let r = row;
+    let c = col;
+    for (;;) {
+      if (direction === 'across') c += delta;
+      else r += delta;
+      if (r < 0 || r >= size || c < 0 || c >= size) return;
+      if (solutionGrid[r][c] !== '#') break;
+    }
+
+    const target = idxOf(size, r, c);
+    const acrossNum = computed.acrossEntryNumberByCell.get(`${r},${c}`);
+    const downNum = computed.downEntryNumberByCell.get(`${r},${c}`);
+    const useDown = direction === 'down' ? downNum != null : downNum != null && acrossNum == null;
+
+    setActiveDirection(useDown ? 'down' : 'across');
+    setActiveEntryNumber(useDown ? (downNum ?? null) : (acrossNum ?? null));
+    setActiveCellIndex(target);
+    focusCell(target);
+  };
+
   const stepOneCell = (fromIndex: number, delta: 1 | -1) => {
     const { row, col } = posOf(size, activeCellIndex ?? fromIndex);
     const next =
@@ -974,6 +998,26 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
                         if (e.key === 'Tab') {
                           e.preventDefault();
                           stepEntry(e.shiftKey ? -1 : 1);
+                          return;
+                        }
+                        if (e.key === 'ArrowLeft') {
+                          e.preventDefault();
+                          moveByArrow('across', -1);
+                          return;
+                        }
+                        if (e.key === 'ArrowRight') {
+                          e.preventDefault();
+                          moveByArrow('across', 1);
+                          return;
+                        }
+                        if (e.key === 'ArrowUp') {
+                          e.preventDefault();
+                          moveByArrow('down', -1);
+                          return;
+                        }
+                        if (e.key === 'ArrowDown') {
+                          e.preventDefault();
+                          moveByArrow('down', 1);
                           return;
                         }
                         if (e.code === 'Space') {

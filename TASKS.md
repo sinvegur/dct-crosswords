@@ -159,7 +159,7 @@ const undo = () => {
 
 ---
 
-## T052 — [BLOCKED, do T050 and T051 first] Arrow-key navigation in the grid
+## T052 — [READY FOR REVIEW] Arrow-key navigation in the grid
 
 **Wait for T050 and T051 to merge** — both edit the designer's keydown handler and would conflict.
 

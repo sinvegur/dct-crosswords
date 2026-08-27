@@ -583,6 +583,30 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     focusCell(activeCellIndex);
   };
 
+  const moveByArrow = (direction: Direction, delta: 1 | -1) => {
+    if (solved || activeCellIndex == null) return;
+    const { row, col } = posOf(size, activeCellIndex);
+
+    let r = row;
+    let c = col;
+    for (;;) {
+      if (direction === 'across') c += delta;
+      else r += delta;
+      if (r < 0 || r >= size || c < 0 || c >= size) return;
+      if (!blockSet.has(idxOf(size, r, c))) break;
+    }
+
+    const target = idxOf(size, r, c);
+    const acrossNum = computed.acrossEntryNumberByCell.get(keyOf(r, c));
+    const downNum = computed.downEntryNumberByCell.get(keyOf(r, c));
+    const useDown = direction === 'down' ? downNum != null : downNum != null && acrossNum == null;
+
+    setActiveDirection(useDown ? 'down' : 'across');
+    setActiveEntryNumber(useDown ? (downNum ?? null) : (acrossNum ?? null));
+    setActiveCellIndex(target);
+    focusCell(target);
+  };
+
   const isEntryFilled = (entry: Entry) =>
     entry.cells.every((c) => Boolean(filled[idxOf(size, c.row, c.col)]));
 
@@ -763,6 +787,30 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
         e.preventDefault();
         if (solved) return;
         stepEntry(e.shiftKey ? -1 : 1);
+        return;
+      }
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        if (solved) return;
+        moveByArrow('across', -1);
+        return;
+      }
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        if (solved) return;
+        moveByArrow('across', 1);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (solved) return;
+        moveByArrow('down', -1);
+        return;
+      }
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (solved) return;
+        moveByArrow('down', 1);
         return;
       }
       if (e.code === 'Space') {
