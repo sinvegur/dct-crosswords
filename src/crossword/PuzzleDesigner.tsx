@@ -28,7 +28,14 @@ function normalizeLetter(raw: string) {
   const trimmed = raw.replace(/\s+/g, '');
   if (!trimmed) return '';
   const ch = trimmed[trimmed.length - 1];
-  if (ch === 'i' || ch === 'I') return 'I';
+  // Deliberately NOT the solver's i/I -> dotless "I" rule. The solver has an
+  // on-screen Turkish panel to reach "İ" with, so it can afford to make the
+  // physical key unambiguous. The builder has no such panel - every letter
+  // comes from the OS keyboard - so forcing dotless here made "İ" impossible
+  // to put in a puzzle at all, and solvers typing it could never match.
+  //
+  // Plain Turkish-locale uppercasing maps a Turkish keyboard correctly:
+  //   ı -> I,  I -> I,  i -> İ,  İ -> İ
   return ch.toLocaleUpperCase('tr-TR');
 }
 
