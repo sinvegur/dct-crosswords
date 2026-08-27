@@ -929,27 +929,28 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
             </span>
           </button>
 
-          <button
-            type="button"
-            className={`toolbarControl ${linkingMode ? 'isActive' : ''}`}
-            aria-label="Link clues"
-            title="Link clues"
-            aria-pressed={linkingMode}
-            onClick={onLinkButton}
-          >
-            <Link2 size={TOOLBAR_ICON_SIZE} aria-hidden />
-          </button>
-
-          <button
-            type="button"
-            className="toolbarControl"
-            aria-label="Remove all clue links"
-            title="Remove all clue links"
-            disabled={validLinks.length === 0}
-            onClick={() => setUnlinkConfirmOpen(true)}
-          >
-            <Unlink2 size={TOOLBAR_ICON_SIZE} aria-hidden />
-          </button>
+          <div className="toolbarSegment" role="group" aria-label="Clue links">
+            <button
+              type="button"
+              className={`toolbarControl ${linkingMode ? 'isActive' : ''}`}
+              aria-label="Link clues"
+              title="Link clues"
+              aria-pressed={linkingMode}
+              onClick={onLinkButton}
+            >
+              <Link2 size={TOOLBAR_ICON_SIZE} aria-hidden />
+            </button>
+            <button
+              type="button"
+              className="toolbarControl"
+              aria-label="Remove all clue links"
+              title="Remove all clue links"
+              disabled={validLinks.length === 0}
+              onClick={() => setUnlinkConfirmOpen(true)}
+            >
+              <Unlink2 size={TOOLBAR_ICON_SIZE} aria-hidden />
+            </button>
+          </div>
         </div>
 
         <div className="gridWrap">
