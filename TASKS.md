@@ -12,6 +12,79 @@ Task queue for handing work from Claude (planning/review) to Cursor (implementat
 
 ---
 
+## T050 — [TODO] Remove letter/block modes from the builder; type `.` to make a black square
+
+Real feedback from the person the app was built for: the Letter/Block mode toggle is friction nobody wants. He builds grids by typing, and reaches for a full stop (`.`) when he wants a black square — no mode switching. Adopt that.
+
+**The whole `editMode` concept goes away.** Delete the `EditMode` type, the `editMode` state, and every `editMode === 'block'` branch (there are ~15 in `PuzzleDesigner.tsx`).
+
+**1. Typing `.` blackens the current square.** Intercept it in `onCellChange`, *before* `normalizeLetter` runs — otherwise `.` gets uppercased and stored as if it were a letter:
+
+```tsx
+const onCellChange = (cellIndex: number, raw: string) => {
+  pickCell(cellIndex);
+  const typed = raw.trim();
+  if (typed.endsWith('.')) {
+    const { row, col } = posOf(size, cellIndex);
+    toggleBlockAt(row, col);
+    stepOneCell(1);   // see item 3
+    return;
+  }
+  // ...existing letter handling unchanged
+};
+```
+
+`toggleBlockAt` already clears the cell's letter and mirrors to the symmetric square when the 180° toggle is on — both behaviours are correct here, keep them.
+
+**2. Clicking a black square turns it white again.** This matters: black cells render no `<input>` (`{!isBlock ? <input .../> : null}`), so once a square is black there is no way to focus it and type `.` a second time. Without this, blackening is a one-way door.
+
+In `onCellClick`: if the clicked cell is currently a block, call `toggleBlockAt` and return. Otherwise `pickCell` as now.
+
+**3. Advance one cell after blackening**, so a run of black squares can be typed as `...` without re-clicking. Add a small helper — note this is a plain geometric step, **not** `moveInResolvedEntry`: adding a block changes the entry structure underneath you, so entry-relative movement is meaningless here.
+
+```tsx
+const stepOneCell = (delta: 1 | -1) => {
+  const { row, col } = posOf(size, activeCellIndex ?? cellIndex);
+  const next = activeDirection === 'across'
+    ? (col + delta >= 0 && col + delta < size ? idxOf(size, row, col + delta) : null)
+    : (row + delta >= 0 && row + delta < size ? idxOf(size, row + delta, col) : null);
+  if (next == null) return;
+  pickCell(next);
+  focusCell(next);
+};
+```
+If the next cell is itself a block it can't be focused — just leave selection where it lands rather than skipping ahead; don't add skip logic for this.
+
+**4. Remove the toolbar mode buttons.** The `toolbarSegment` holding the Letter (`PencilLine`) and Block (`Grid2x2`) buttons goes entirely. Keep the 180° symmetry and Shuffle buttons. **Remove the now-unused `PencilLine` and `Grid2x2` imports** from the `lucide-react` import — leaving them will fail lint.
+
+**5. Update the two copy strings** that branched on mode:
+- The `.designHint` under "Design" (~line 752)
+- The `.statusBar` message (~line 931)
+
+Both should now describe one mode. Something like: *"Type letters to fill answers. Type a full stop (.) for a black square — click a black square to undo."* Keep the existing "Ready to save" / incomplete-answers / missing-clues states in the status bar exactly as they are; only the block-mode branch disappears.
+
+**6. Remove `disabled={editMode === 'block'}`** from the "Direction (SPACE)" button (~line 670) — it should always be enabled now.
+
+**7. CSS in `src/styles.css`:**
+- Delete the `.gridBlockMode .cell input { pointer-events: none; }` rule — the class no longer exists.
+- `.cellClickable` was only applied in block mode. Apply it to **black cells always**, so they show a pointer cursor and read as clickable (they now are). White cells keep the text cursor from their input.
+
+**Do not touch** `CrosswordPlayer.tsx`. Solvers never edit blocks, and `.` must keep doing nothing there.
+
+**Out of scope:** T011 further down this file also proposes changes to this toolbar. Do not implement any of it.
+
+**Testing:** run the app (`npm run dev`) and verify in the builder:
+- Typing `.` on an empty square blackens it and moves one cell along the current direction
+- Typing `...` in a row produces three black squares
+- Typing `.` on a square that already holds a letter blackens it and discards the letter
+- With 180° symmetry on, the mirrored square blackens too; with it off, only the one you typed on
+- Clicking a black square turns it back to white
+- Ordinary letter typing, auto-advance, backspace-jump-back and Tab stepping all still behave exactly as before (these were T049 — don't regress them)
+- The clue list and numbering update correctly as blocks appear and disappear
+- No Letter/Block buttons remain, and the hint text describes the new behaviour
+
+---
+
 ## T046 — [BLOCKED, pending user confirmation] Mobile letter-clipping bug — likely fixed, awaiting real-device check
 
 **Not a Cursor task right now — do not pick this up.** Claude handled this directly (real-device-only bug, needed live iteration). Leaving a short record here rather than deleting, in case it resurfaces.
