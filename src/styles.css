@@ -457,6 +457,19 @@ textarea {
   border-top: 1px solid var(--border);
 }
 
+.controlsRowCopy {
+  flex: 1;
+  min-width: 0;
+}
+
+.controlsRowActions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+  flex-wrap: nowrap;
+  margin-left: auto;
+}
+
 .designHint {
   min-height: 2.5em;
   line-height: 1.25;

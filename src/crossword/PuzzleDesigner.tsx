@@ -757,7 +757,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
 
       <div className="panel designerGridPanel">
         <div className="controlsRow">
-          <div>
+          <div className="controlsRowCopy">
             <div className="title" style={{ fontSize: 16 }}>
               Design
             </div>
@@ -766,7 +766,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
               square to undo.
             </div>
           </div>
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <div className="controlsRowActions">
             <button
               type="button"
               className="btn"
