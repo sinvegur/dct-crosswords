@@ -279,6 +279,19 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     [puzzle.clues.links, computed],
   );
 
+  const [startAtMs, setStartAtMs] = useState(() => {
+    const saved = loadProgress(puzzle.id, cellCount);
+    return saved?.startAtMs ?? Date.now();
+  });
+  const [elapsedMs, setElapsedMs] = useState<number | null>(null);
+  const [solved, setSolved] = useState(false);
+  const [resultsView, setResultsView] = useState<'leaderboard' | 'grid'>('leaderboard');
+  const [lockedCells, setLockedCells] = useState<Set<number>>(() => {
+    const saved = loadProgress(puzzle.id, cellCount);
+    return new Set(saved?.locked ?? []);
+  });
+  const [wrongCells, setWrongCells] = useState<Set<number>>(new Set());
+
   const linkedCellIndices = useMemo(() => {
     const set = new Set<number>();
     if (solved || activeEntryNumber == null) return set;
@@ -304,19 +317,6 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     activeEntryCellIndices,
     size,
   ]);
-
-  const [startAtMs, setStartAtMs] = useState(() => {
-    const saved = loadProgress(puzzle.id, cellCount);
-    return saved?.startAtMs ?? Date.now();
-  });
-  const [elapsedMs, setElapsedMs] = useState<number | null>(null);
-  const [solved, setSolved] = useState(false);
-  const [resultsView, setResultsView] = useState<'leaderboard' | 'grid'>('leaderboard');
-  const [lockedCells, setLockedCells] = useState<Set<number>>(() => {
-    const saved = loadProgress(puzzle.id, cellCount);
-    return new Set(saved?.locked ?? []);
-  });
-  const [wrongCells, setWrongCells] = useState<Set<number>>(new Set());
 
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [userRank, setUserRank] = useState<number | null>(null);
