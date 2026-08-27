@@ -750,13 +750,6 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
           <div className="directionBlock">
             <div className="directionHeader">
               <span>Across</span>
-              <button
-                type="button"
-                className="btn"
-                onClick={toggleDirection}
-              >
-                Direction (SPACE)
-              </button>
             </div>
             {computed?.entriesAcross.map((e) => {
               const isActive = activeDirection === 'across' && activeEntryNumber === e.number;
@@ -848,7 +841,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
             </div>
             <div className="subtle designHint">
               Type letters to fill answers. Type a full stop (.) for a black square — click a black
-              square to undo.
+              square to undo. Space or the arrow keys change direction.
             </div>
           </div>
           <div className="controlsRowActions">
