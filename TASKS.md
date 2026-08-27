@@ -12,7 +12,7 @@ Task queue for handing work from Claude (planning/review) to Cursor (implementat
 
 ---
 
-## T054 — [TODO] Let solvers switch between the leaderboard and the completed grid
+## T054 — [READY FOR REVIEW] Let solvers switch between the leaderboard and the completed grid
 
 After solving, the results panel completely replaces the grid, so there's no way to look at the puzzle you just finished. Add a simple two-way switcher.
 
@@ -51,6 +51,8 @@ It must fit the mobile width without wrapping or squeezing the grid. Check both 
 - Check a few squares *before* solving, then solve: the completed grid shows no leftover blue or red marks
 - Clue bar navigation (chevrons, tapping the clue) still behaves in the solved grid view, or is hidden — your call, but say which you chose in the implementation notes
 - Starting a different puzzle afterwards resets the view to Leaderboard
+
+**Implementation notes:** Grid is rendered once (`{!solved || resultsView === 'grid'}`) rather than duplicated. Clue bar is **hidden** in the solved puzzle view so the finished grid has more room (especially on mobile); desktop Across/Down lists still show clues. Check blue/red styling is suppressed while `solved`. Switcher uses its own text-segment styles (not `toolbarControl`) so labels aren't clipped by the 36px icon-button width.
 
 ---
 

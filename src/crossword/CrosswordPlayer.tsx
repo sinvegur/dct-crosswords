@@ -277,6 +277,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
   });
   const [elapsedMs, setElapsedMs] = useState<number | null>(null);
   const [solved, setSolved] = useState(false);
+  const [resultsView, setResultsView] = useState<'leaderboard' | 'grid'>('leaderboard');
   const [lockedCells, setLockedCells] = useState<Set<number>>(() => {
     const saved = loadProgress(puzzle.id, cellCount);
     return new Set(saved?.locked ?? []);
@@ -313,6 +314,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     setLockedCells(new Set(saved?.locked ?? []));
     setWrongCells(new Set());
     setSolved(false);
+    setResultsView('leaderboard');
     setElapsedMs(null);
     setLeaderboard([]);
     setUserRank(null);
@@ -1027,57 +1029,82 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
         </div>
 
         {solved ? (
-          <div className="solverResults">
+          <>
             <div className="solverResultsHeader">
               <div className="title">Solved! 🎉</div>
               <div className="subtle">
                 Your time: <strong>{elapsedMs != null ? formatElapsedMs(elapsedMs) : '—'}</strong>
               </div>
+              <div className="resultsViewSwitch" role="group" aria-label="Results view">
+                <button
+                  type="button"
+                  className={`resultsViewSwitchBtn ${resultsView === 'leaderboard' ? 'isActive' : ''}`}
+                  aria-pressed={resultsView === 'leaderboard'}
+                  onClick={() => setResultsView('leaderboard')}
+                >
+                  Leaderboard
+                </button>
+                <button
+                  type="button"
+                  className={`resultsViewSwitchBtn ${resultsView === 'grid' ? 'isActive' : ''}`}
+                  aria-pressed={resultsView === 'grid'}
+                  onClick={() => setResultsView('grid')}
+                >
+                  Puzzle
+                </button>
+              </div>
             </div>
 
-            {submitError ? <p className="loginError">{submitError}</p> : null}
+            {resultsView === 'leaderboard' ? (
+              <div className="solverResults">
+                {submitError ? <p className="loginError">{submitError}</p> : null}
 
-            <div className="panelHeader" style={{ borderTop: '1px solid var(--border)' }}>
-              Leaderboard
-            </div>
+                <div className="panelHeader" style={{ borderTop: '1px solid var(--border)' }}>
+                  Leaderboard
+                </div>
 
-            {resultsLoading ? (
-              <div className="emptyState">
-                <p className="subtle">Loading results…</p>
-              </div>
-            ) : leaderboard.length === 0 ? (
-              <div className="emptyState">
-                <p className="subtle">No times yet — you&apos;re first!</p>
-              </div>
-            ) : (
-              <ol className="leaderboardList">
-                {leaderboard.map((entry, index) => {
-                  const isYou = entry.id === attemptId;
-                  return (
-                    <li
-                      key={entry.id}
-                      className={`leaderboardRow ${isYou ? 'leaderboardRowYou' : ''}`}
-                    >
-                      <span className="leaderboardRank">{index + 1}</span>
-                      <span className="leaderboardName">
-                        {entry.solverName}
-                        {isYou ? ' (you)' : ''}
-                      </span>
-                      <span className="leaderboardTime">{formatElapsedMs(entry.elapsedMs)}</span>
-                    </li>
-                  );
-                })}
-              </ol>
-            )}
+                {resultsLoading ? (
+                  <div className="emptyState">
+                    <p className="subtle">Loading results…</p>
+                  </div>
+                ) : leaderboard.length === 0 ? (
+                  <div className="emptyState">
+                    <p className="subtle">No times yet — you&apos;re first!</p>
+                  </div>
+                ) : (
+                  <ol className="leaderboardList">
+                    {leaderboard.map((entry, index) => {
+                      const isYou = entry.id === attemptId;
+                      return (
+                        <li
+                          key={entry.id}
+                          className={`leaderboardRow ${isYou ? 'leaderboardRowYou' : ''}`}
+                        >
+                          <span className="leaderboardRank">{index + 1}</span>
+                          <span className="leaderboardName">
+                            {entry.solverName}
+                            {isYou ? ' (you)' : ''}
+                          </span>
+                          <span className="leaderboardTime">{formatElapsedMs(entry.elapsedMs)}</span>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                )}
 
-            {showRankOutsideTop && elapsedMs != null ? (
-              <div className="leaderboardYouOutside subtle">
-                You: {formatElapsedMs(elapsedMs)} · Rank #{userRank}
+                {showRankOutsideTop && elapsedMs != null ? (
+                  <div className="leaderboardYouOutside subtle">
+                    You: {formatElapsedMs(elapsedMs)} · Rank #{userRank}
+                  </div>
+                ) : null}
               </div>
             ) : null}
-          </div>
-        ) : (
+          </>
+        ) : null}
+
+        {!solved || resultsView === 'grid' ? (
           <div className="gridWrap">
+            {!solved ? (
             <div className="clueBar">
               <button
                 type="button"
@@ -1116,6 +1143,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
                 <ChevronRight size={20} aria-hidden />
               </button>
             </div>
+            ) : null}
             <div className="gridSlot" ref={gridSlotRef}>
               <div
                 className="grid"
@@ -1155,8 +1183,8 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
                       showNumber={showCellNumbers}
                       isActiveCell={activeEntryCellIndices.has(cellIndex)}
                       isCurrentCell={activeCellIndex === cellIndex}
-                      isLocked={lockedCells.has(cellIndex)}
-                      isWrong={wrongCells.has(cellIndex)}
+                      isLocked={!solved && lockedCells.has(cellIndex)}
+                      isWrong={!solved && wrongCells.has(cellIndex)}
                       isMobile={isMobile}
                       fontSizePx={fontSizePx}
                       inputsRef={inputsRef}
@@ -1170,7 +1198,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
                 })}
               </div>
             </div>
-            {isMobile ? (
+            {isMobile && !solved ? (
               <div className="solverKeyboard" role="group" aria-label="On-screen keyboard">
                 {showTurkishKeys ? (
                   <div className="solverKeyboardRow">
@@ -1240,7 +1268,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
               </div>
             ) : null}
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );
