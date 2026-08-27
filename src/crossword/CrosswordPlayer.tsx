@@ -1181,8 +1181,11 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
                       value={filled[cellIndex] ?? ''}
                       numAtCell={numAtCell}
                       showNumber={showCellNumbers}
-                      isActiveCell={activeEntryCellIndices.has(cellIndex)}
-                      isCurrentCell={activeCellIndex === cellIndex}
+                      // Once solved, the grid is a finished artifact people
+                      // may want to screenshot - no active word, no cursor
+                      // square, nothing but the completed puzzle.
+                      isActiveCell={!solved && activeEntryCellIndices.has(cellIndex)}
+                      isCurrentCell={!solved && activeCellIndex === cellIndex}
                       isLocked={!solved && lockedCells.has(cellIndex)}
                       isWrong={!solved && wrongCells.has(cellIndex)}
                       isMobile={isMobile}
