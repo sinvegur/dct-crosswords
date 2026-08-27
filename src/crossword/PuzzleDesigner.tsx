@@ -169,24 +169,29 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
     setCluesDown(s.cluesDown);
   };
 
+  // Note: applySnapshot must be called OUTSIDE the setHistory updater.
+  // Updater functions have to be pure, and StrictMode double-invokes them to
+  // catch exactly this - a setState side effect nested inside another one.
   const undo = () => {
-    setHistory((h) => {
-      if (h.past.length === 0) return h;
-      const current = snapshotFromState(title, rows, cluesAcross, cluesDown);
-      const previous = h.past[h.past.length - 1]!;
-      applySnapshot(previous);
-      return { past: h.past.slice(0, -1), future: [current, ...h.future].slice(0, 100) };
-    });
+    if (history.past.length === 0) return;
+    const current = snapshotFromState(title, rows, cluesAcross, cluesDown);
+    const previous = history.past[history.past.length - 1]!;
+    applySnapshot(previous);
+    setHistory((h) => ({
+      past: h.past.slice(0, -1),
+      future: [current, ...h.future].slice(0, 100),
+    }));
   };
 
   const redo = () => {
-    setHistory((h) => {
-      if (h.future.length === 0) return h;
-      const current = snapshotFromState(title, rows, cluesAcross, cluesDown);
-      const next = h.future[0]!;
-      applySnapshot(next);
-      return { past: [...h.past, current].slice(-100), future: h.future.slice(1) };
-    });
+    if (history.future.length === 0) return;
+    const current = snapshotFromState(title, rows, cluesAcross, cluesDown);
+    const next = history.future[0]!;
+    applySnapshot(next);
+    setHistory((h) => ({
+      past: [...h.past, current].slice(-100),
+      future: h.future.slice(1),
+    }));
   };
 
   const applyShuffle = () => {
@@ -961,13 +966,19 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
               const isBlock = ch === '#';
               const value = isBlock || ch.trim() === '' ? '' : ch;
               const isActive = !isBlock && activeEntryCellIndices.has(cellIndex);
+              // The single square the cursor is on, distinct from the whole
+              // highlighted entry. CrosswordPlayer has always drawn this;
+              // the designer never did, which made arrow-key movement
+              // invisible - the word highlight doesn't change as you step
+              // within it.
+              const isCurrent = !isBlock && activeCellIndex === cellIndex;
 
               return (
                 <div
                   key={cellIndex}
                   className={`cell ${isBlock ? 'block' : ''} ${isActive ? 'cellActive' : ''} ${
-                    isBlock ? 'cellClickable' : ''
-                  }`}
+                    isCurrent ? 'cellCurrent' : ''
+                  } ${isBlock ? 'cellClickable' : ''}`}
                   onClick={() => onCellClick(cellIndex)}
                 >
                   {!isBlock && numAtCell != null ? (
