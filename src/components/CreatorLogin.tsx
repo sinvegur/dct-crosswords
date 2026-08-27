@@ -12,6 +12,22 @@ import type { Session } from '@supabase/supabase-js';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabaseClient';
 
+// Supabase Auth identifies users by email, but the address is only ever an
+// identifier here - it never has to receive mail. Constructor accounts are
+// created in the Supabase dashboard as <username>@dctcrosswords.online with
+// "Auto Confirm User" checked, so people can sign in with a plain username.
+// A real email address typed in full still works unchanged.
+const USERNAME_DOMAIN = 'dctcrosswords.online';
+
+function toAuthEmail(input: string): string {
+  const trimmed = input.trim();
+  if (trimmed.includes('@')) return trimmed;
+  // toLowerCase, deliberately not toLocaleLowerCase: on a Turkish device the
+  // locale-aware version turns "I" into dotless "ı", which would never match
+  // the account created in the dashboard.
+  return `${trimmed.toLowerCase()}@${USERNAME_DOMAIN}`;
+}
+
 type AuthContextValue = {
   session: Session | null;
   loading: boolean;
@@ -104,7 +120,7 @@ export function CreatorLogin() {
     setError(null);
     setSubmitting(true);
     const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
+      email: toAuthEmail(email),
       password,
     });
     setSubmitting(false);
@@ -130,10 +146,13 @@ export function CreatorLogin() {
       <div className="panelHeader">Creator login</div>
       <form className="loginForm" onSubmit={onSubmit}>
         <label className="loginField">
-          <span className="subtle">Email</span>
+          <span className="subtle">Username</span>
           <input
-            type="email"
+            type="text"
             autoComplete="username"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
