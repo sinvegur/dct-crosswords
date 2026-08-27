@@ -487,7 +487,9 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
 
     const next = indices[nextPos];
     if (next == null) {
-      if (delta === 1) stepEntry(1);
+      // End of the entry: stay put. Typing on the last square overwrites it
+      // in place rather than carrying the cursor into the next clue - moving
+      // between entries is always deliberate (Tab, Space, arrows, click).
       return;
     }
     handlePickCell(next);
@@ -511,52 +513,6 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     setActiveCellIndex(next);
   };
 
-  const jumpToPreviousEntryEnd = (direction: Direction, entryNumber: number) => {
-    const combined = [
-      ...computed.entriesAcross.map((entry) => ({ direction: 'across' as const, entry })),
-      ...computed.entriesDown.map((entry) => ({ direction: 'down' as const, entry })),
-    ];
-    const currentIdx = combined.findIndex(
-      (item) => item.direction === direction && item.entry.number === entryNumber,
-    );
-    if (currentIdx === -1) return;
-    const prevIdx = currentIdx === 0 ? combined.length - 1 : currentIdx - 1;
-    const target = combined[prevIdx]!;
-    const targetIndices = target.entry.cells.map((c) => idxOf(size, c.row, c.col));
-    // Land on the last cell that can actually be cleared, skipping locked
-    // ones from the end - same reasoning as the same-entry walk-back: the
-    // cursor should never come to rest somewhere backspace does nothing.
-    // If the whole entry is locked there's nowhere better to go, so fall
-    // back to its last cell rather than searching further backwards.
-    let lastPos = targetIndices.length - 1;
-    while (lastPos >= 0 && lockedCells.has(targetIndices[lastPos]!)) {
-      lastPos -= 1;
-    }
-    const allLocked = lastPos < 0;
-    const lastCell = allLocked
-      ? targetIndices[targetIndices.length - 1]!
-      : targetIndices[lastPos]!;
-
-    // Matches the existing same-entry cascade: backspacing across an entry
-    // boundary should delete that cell's letter in the same action, not
-    // just navigate to it and require a second backspace.
-    if (!allLocked) {
-      const nextFilled = filled.slice();
-      nextFilled[lastCell] = '';
-      setFilled(nextFilled);
-      setWrongCells((prev) => {
-        if (!prev.has(lastCell)) return prev;
-        const next = new Set(prev);
-        next.delete(lastCell);
-        return next;
-      });
-    }
-    setActiveDirection(target.direction);
-    setActiveEntryNumber(target.entry.number);
-    setActiveCellIndex(lastCell);
-    focusCell(lastCell);
-  };
-
   const backspaceEmptyCell = (cellIndex: number) => {
     handlePickCell(cellIndex);
     let direction: Direction = activeDirection;
@@ -578,25 +534,20 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
       handlePickCell(cellIndex);
     }
 
-    if (pos === 0) {
-      jumpToPreviousEntryEnd(direction, entry.number);
-      return;
-    }
+    // Already at the entry's first square - stop here rather than jumping
+    // into the previous clue.
+    if (pos === 0) return;
 
-    // Walk back past locked cells rather than parking on one. Backspace
-    // can't clear a locked cell, so landing the cursor there is a dead end -
-    // it looks focused but every further keypress does nothing.
-    let prevPos = pos - 1;
-    while (prevPos >= 0 && lockedCells.has(indices[prevPos]!)) {
-      prevPos -= 1;
-    }
-
-    if (prevPos < 0) {
-      jumpToPreviousEntryEnd(direction, entry.number);
-      return;
-    }
+    // Backspace stops at a wall rather than travelling: the start of the
+    // entry, or a locked (checked-correct) square. It never crosses into
+    // another clue and never skips over a locked square to find something
+    // deletable further back.
+    const prevPos = pos - 1;
+    if (prevPos < 0) return;
 
     const prev = indices[prevPos]!;
+    if (lockedCells.has(prev)) return;
+
     const nextFilled = filled.slice();
     nextFilled[prev] = '';
     setFilled(nextFilled);
