@@ -1029,7 +1029,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
         {solved ? (
           <div className="solverResults">
             <div className="solverResultsHeader">
-              <div className="title">Solved!</div>
+              <div className="title">Solved! 🎉</div>
               <div className="subtle">
                 Your time: <strong>{elapsedMs != null ? formatElapsedMs(elapsedMs) : '—'}</strong>
               </div>
