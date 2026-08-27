@@ -12,7 +12,7 @@ Task queue for handing work from Claude (planning/review) to Cursor (implementat
 
 ---
 
-## T050 — [TODO] Remove letter/block modes from the builder; type `.` to make a black square
+## T050 — [READY FOR REVIEW] Remove letter/block modes from the builder; type `.` to make a black square
 
 Real feedback from the person the app was built for: the Letter/Block mode toggle is friction nobody wants. He builds grids by typing, and reaches for a full stop (`.`) when he wants a black square — no mode switching. Adopt that.
 
@@ -82,6 +82,8 @@ Both should now describe one mode. Something like: *"Type letters to fill answer
 - Ordinary letter typing, auto-advance, backspace-jump-back and Tab stepping all still behave exactly as before (these were T049 — don't regress them)
 - The clue list and numbering update correctly as blocks appear and disappear
 - No Letter/Block buttons remain, and the hint text describes the new behaviour
+
+**Implementation notes:** `stepOneCell` takes `fromIndex` (the spec snippet referenced `cellIndex` from outside the helper). Also intercept `.` in cell `onKeyDown` (preventDefault + same blacken-and-step) so typing `.` on a filled letter still works when `maxLength=1` would otherwise swallow it.
 
 ---
 

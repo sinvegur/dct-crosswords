@@ -1043,10 +1043,6 @@ textarea {
   cursor: pointer;
 }
 
-.gridBlockMode .cell input {
-  pointer-events: none;
-}
-
 .modalOverlay {
   position: fixed;
   inset: 0;

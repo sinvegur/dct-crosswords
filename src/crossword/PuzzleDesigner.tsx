@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { Grid2x2, PencilLine, Shuffle } from 'lucide-react';
+import { Shuffle } from 'lucide-react';
 import { ShuffleConfirmModal } from '@/components/ShuffleConfirmModal';
 import { UnsavedChangesModal } from '@/components/UnsavedChangesModal';
 import {
@@ -106,8 +106,6 @@ function pickShuffleTemplate(excludeId: StartingGridId | null, size: number): Te
   return choices[Math.floor(Math.random() * choices.length)]!;
 }
 
-type EditMode = 'letter' | 'block';
-
 type Props = {
   initial?: Puzzle;
   /** Starting layout when creating a new puzzle (from the modal). */
@@ -129,9 +127,6 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
   const [title, setTitle] = useState(initial?.title ?? 'New puzzle');
   const [rows, setRows] = useState<string[]>(() => initialRows(initial, startingTemplate));
 
-  const [editMode, setEditMode] = useState<EditMode>(() =>
-    startingTemplate?.id === 'blank' ? 'block' : 'letter',
-  );
   const [symmetry, setSymmetry] = useState(
     () => startingTemplate?.defaultSymmetry ?? false,
   );
@@ -436,9 +431,30 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
     }
   };
 
+  const stepOneCell = (fromIndex: number, delta: 1 | -1) => {
+    const { row, col } = posOf(size, activeCellIndex ?? fromIndex);
+    const next =
+      activeDirection === 'across'
+        ? col + delta >= 0 && col + delta < size
+          ? idxOf(size, row, col + delta)
+          : null
+        : row + delta >= 0 && row + delta < size
+          ? idxOf(size, row + delta, col)
+          : null;
+    if (next == null) return;
+    pickCell(next);
+    focusCell(next);
+  };
+
   const onCellChange = (cellIndex: number, raw: string) => {
-    if (editMode === 'block') return;
     pickCell(cellIndex);
+    const typed = raw.trim();
+    if (typed.endsWith('.')) {
+      const { row, col } = posOf(size, cellIndex);
+      toggleBlockAt(row, col);
+      stepOneCell(cellIndex, 1);
+      return;
+    }
     const wasEmpty = flat[cellIndex].trim() === '';
     const letter = normalizeLetter(raw);
     setCellLetter(cellIndex, letter);
@@ -454,7 +470,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
 
   const onCellClick = (cellIndex: number) => {
     const { row, col } = posOf(size, cellIndex);
-    if (editMode === 'block') {
+    if (solutionGrid[row][col] === '#') {
       toggleBlockAt(row, col);
       return;
     }
@@ -667,7 +683,6 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
                 type="button"
                 className="btn"
                 onClick={toggleDirection}
-                disabled={editMode === 'block'}
               >
                 Direction (SPACE)
               </button>
@@ -679,7 +694,6 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
                   key={`a-${e.number}`}
                   className={`clueEdit ${isActive ? 'clueActive' : ''}`}
                   onClick={() => {
-                    if (editMode === 'block') return;
                     setActiveDirection('across');
                     setActiveEntryNumber(e.number);
                     focusCell(idxOf(size, e.start.row, e.start.col));
@@ -715,7 +729,6 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
                   key={`d-${e.number}`}
                   className={`clueEdit ${isActive ? 'clueActive' : ''}`}
                   onClick={() => {
-                    if (editMode === 'block') return;
                     setActiveDirection('down');
                     setActiveEntryNumber(e.number);
                     focusCell(idxOf(size, e.start.row, e.start.col));
@@ -749,9 +762,8 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
               Design
             </div>
             <div className="subtle designHint">
-              {editMode === 'block'
-                ? 'Block mode: click cells to toggle white ↔ black.'
-                : 'Toggle direction with SPACE.'}
+              Type letters to fill answers. Type a full stop (.) for a black square — click a black
+              square to undo.
             </div>
           </div>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -804,29 +816,6 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
         </div>
 
         <div className="editorToolbar">
-          <div className="toolbarSegment" role="group" aria-label="Edit mode">
-            <button
-              type="button"
-              className={`toolbarControl ${editMode === 'letter' ? 'isActive' : ''}`}
-              aria-label="Letter mode"
-              title="Letter mode"
-              aria-pressed={editMode === 'letter'}
-              onClick={() => setEditMode('letter')}
-            >
-              <PencilLine size={TOOLBAR_ICON_SIZE} aria-hidden />
-            </button>
-            <button
-              type="button"
-              className={`toolbarControl ${editMode === 'block' ? 'isActive' : ''}`}
-              aria-label="Block mode"
-              title="Block mode"
-              aria-pressed={editMode === 'block'}
-              onClick={() => setEditMode('block')}
-            >
-              <Grid2x2 size={TOOLBAR_ICON_SIZE} aria-hidden />
-            </button>
-          </div>
-
           <button
             type="button"
             className={`toolbarControl ${symmetry ? 'isActive' : ''}`}
@@ -859,7 +848,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
         <div className="gridWrap">
           <div className="designerGridSlot">
           <div
-            className={`grid ${editMode === 'block' ? 'gridBlockMode' : ''}`}
+            className="grid"
             style={{ '--grid-size': size } as CSSProperties}
           >
             {Array.from({ length: size * size }, (_, cellIndex) => {
@@ -874,7 +863,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
                 <div
                   key={cellIndex}
                   className={`cell ${isBlock ? 'block' : ''} ${isActive ? 'cellActive' : ''} ${
-                    editMode === 'block' ? 'cellClickable' : ''
+                    isBlock ? 'cellClickable' : ''
                   }`}
                   onClick={() => onCellClick(cellIndex)}
                 >
@@ -891,15 +880,18 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
                       inputMode="text"
                       autoCorrect="off"
                       spellCheck={false}
-                      tabIndex={editMode === 'block' ? -1 : 0}
-                      readOnly={editMode === 'block'}
                       onFocus={() => {
-                        if (editMode === 'block') return;
                         pickCell(cellIndex);
                       }}
                       onChange={(e) => onCellChange(cellIndex, e.target.value)}
                       onKeyDown={(e) => {
-                        if (editMode === 'block') return;
+                        if (e.key === '.') {
+                          e.preventDefault();
+                          const { row, col } = posOf(size, cellIndex);
+                          toggleBlockAt(row, col);
+                          stepOneCell(cellIndex, 1);
+                          return;
+                        }
                         if (e.key === 'Tab') {
                           e.preventDefault();
                           stepEntry(e.shiftKey ? -1 : 1);
@@ -928,12 +920,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
           </div>
 
           <div className="statusBar">
-            {editMode === 'block' ? (
-              <span className="hint">
-                Starting layouts are editable — add or remove black squares anytime.
-                {symmetry ? ' Symmetry mirrors each toggle.' : ''}
-              </span>
-            ) : incompleteEntries.length > 0 ? (
+            {incompleteEntries.length > 0 ? (
               <span className="hint">
                 Incomplete answers: {incompleteEntries.length} entries — fill every letter before
                 saving.
