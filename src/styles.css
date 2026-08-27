@@ -760,18 +760,42 @@ textarea {
 }
 
 .resultsViewSwitch {
+  display: flex;
   width: 100%;
   max-width: 360px;
   margin-top: 10px;
+  height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #ffffff;
 }
 
-.toolbarSegment.resultsViewSwitch .toolbarControl {
-  width: auto;
+.resultsViewSwitchBtn {
   flex: 1;
-  padding: 0 12px;
+  height: 100%;
+  border: none;
+  border-radius: 0;
+  background: #ffffff;
+  color: #111827;
+  font-family: var(--font-body);
   font-size: 13px;
   font-weight: 700;
   white-space: nowrap;
+  cursor: pointer;
+}
+
+.resultsViewSwitchBtn + .resultsViewSwitchBtn {
+  border-left: 1px solid var(--border);
+}
+
+.resultsViewSwitchBtn.isActive {
+  background: #111827;
+  color: #ffffff;
+}
+
+.resultsViewSwitchBtn:hover:not(.isActive) {
+  background: #f3f4f6;
 }
 
 .leaderboardList {

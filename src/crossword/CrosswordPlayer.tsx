@@ -1035,14 +1035,10 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
               <div className="subtle">
                 Your time: <strong>{elapsedMs != null ? formatElapsedMs(elapsedMs) : '—'}</strong>
               </div>
-              <div
-                className="toolbarSegment resultsViewSwitch"
-                role="group"
-                aria-label="Results view"
-              >
+              <div className="resultsViewSwitch" role="group" aria-label="Results view">
                 <button
                   type="button"
-                  className={`toolbarControl ${resultsView === 'leaderboard' ? 'isActive' : ''}`}
+                  className={`resultsViewSwitchBtn ${resultsView === 'leaderboard' ? 'isActive' : ''}`}
                   aria-pressed={resultsView === 'leaderboard'}
                   onClick={() => setResultsView('leaderboard')}
                 >
@@ -1050,7 +1046,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
                 </button>
                 <button
                   type="button"
-                  className={`toolbarControl ${resultsView === 'grid' ? 'isActive' : ''}`}
+                  className={`resultsViewSwitchBtn ${resultsView === 'grid' ? 'isActive' : ''}`}
                   aria-pressed={resultsView === 'grid'}
                   onClick={() => setResultsView('grid')}
                 >

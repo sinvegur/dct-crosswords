@@ -52,7 +52,7 @@ It must fit the mobile width without wrapping or squeezing the grid. Check both 
 - Clue bar navigation (chevrons, tapping the clue) still behaves in the solved grid view, or is hidden — your call, but say which you chose in the implementation notes
 - Starting a different puzzle afterwards resets the view to Leaderboard
 
-**Implementation notes:** Grid is rendered once (`{!solved || resultsView === 'grid'}`) rather than duplicated. Clue bar is **hidden** in the solved puzzle view so the finished grid has more room (especially on mobile); desktop Across/Down lists still show clues. Check blue/red styling is suppressed while `solved`.
+**Implementation notes:** Grid is rendered once (`{!solved || resultsView === 'grid'}`) rather than duplicated. Clue bar is **hidden** in the solved puzzle view so the finished grid has more room (especially on mobile); desktop Across/Down lists still show clues. Check blue/red styling is suppressed while `solved`. Switcher uses its own text-segment styles (not `toolbarControl`) so labels aren't clipped by the 36px icon-button width.
 
 ---
 
