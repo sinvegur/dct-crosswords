@@ -155,6 +155,83 @@ const undo = () => {
 
 ---
 
+## T052 — [BLOCKED, do T050 and T051 first] Arrow-key navigation in the grid
+
+**Wait for T050 and T051 to merge** — both edit the designer's keydown handler and would conflict.
+
+Arrow keys currently do nothing in either the solver or the builder. In a `maxLength=1` input they just move an invisible caret. Every established crossword app supports them, and it's how the person this was built for expects to move around a grid.
+
+**Behaviour** (matches NYT and the tools he uses):
+- **Left / Right** → set direction to `across`, then move one cell horizontally
+- **Up / Down** → set direction to `down`, then move one cell vertically
+- Pressing an arrow perpendicular to the current direction therefore *switches* direction. That's the point — it's how you change orientation without clicking.
+- **Skip over black squares**: keep stepping in the same direction until a non-block cell is found
+- **Stop at the edges** — do not wrap around
+- If there's no reachable cell that way (edge, or only blocks between here and it), stay put and do nothing
+
+**Implement in both `CrosswordPlayer.tsx` and `PuzzleDesigner.tsx`.** Write the helper separately in each file, matching how `moveInResolvedEntry`, `resolveEntryAtCell` etc. are already duplicated across the two. Do **not** extract a shared module as part of this task.
+
+**The trap — read this before writing code.** `handlePickCell` (player) and `pickCell` (designer) both read `activeDirection` from their closure. So this is **wrong**:
+
+```tsx
+setActiveDirection('across');
+handlePickCell(next);        // still sees the OLD direction — highlights the wrong entry
+```
+
+Write a helper that takes the direction explicitly and sets all three pieces of state itself, the way `focusEntry` and `jumpToPreviousEntryEnd` already do:
+
+```tsx
+const moveByArrow = (direction: Direction, delta: 1 | -1) => {
+  if (activeCellIndex == null) return;
+  const { row, col } = posOf(size, activeCellIndex);
+
+  // step until a non-block cell, or run off the edge
+  let r = row, c = col;
+  for (;;) {
+    if (direction === 'across') c += delta; else r += delta;
+    if (r < 0 || r >= size || c < 0 || c >= size) return;   // edge: stay put
+    if (!blockSet.has(idxOf(size, r, c))) break;            // found one
+  }
+
+  const target = idxOf(size, r, c);
+  const acrossNum = computed.acrossEntryNumberByCell.get(keyOf(r, c));
+  const downNum = computed.downEntryNumberByCell.get(keyOf(r, c));
+  // Prefer the arrow's own axis; fall back if this cell has no entry that way
+  // (a single-width column has no down entry, for instance).
+  const useDown = direction === 'down' ? downNum != null : downNum != null && acrossNum == null;
+
+  setActiveDirection(useDown ? 'down' : 'across');
+  setActiveEntryNumber(useDown ? (downNum ?? null) : (acrossNum ?? null));
+  setActiveCellIndex(target);
+  focusCell(target);
+};
+```
+Adapt names to each file (the designer has no `blockSet` — use its `solutionGrid[r][c] === '#'` check; the designer's `computed` is nullable, so guard it).
+
+**Wire it into the existing keydown handlers**, alongside the current Tab / Space / Backspace cases. `e.preventDefault()` on all four keys so the caret doesn't move inside the input:
+
+```tsx
+if (e.key === 'ArrowLeft')  { e.preventDefault(); moveByArrow('across', -1); return; }
+if (e.key === 'ArrowRight') { e.preventDefault(); moveByArrow('across',  1); return; }
+if (e.key === 'ArrowUp')    { e.preventDefault(); moveByArrow('down',   -1); return; }
+if (e.key === 'ArrowDown')  { e.preventDefault(); moveByArrow('down',    1); return; }
+```
+
+In the player, put this inside `stableKeyDownCell`. In the solver, do nothing when `solved` is true, matching how Tab already bails.
+
+**Do not** add arrow handling to the clue-list inputs in the designer — arrows must keep working normally for text editing there.
+
+**Testing — both the solver and the builder:**
+- Left/Right move one cell and switch the highlight to the across entry; Up/Down likewise for down
+- Starting in across and pressing Down switches orientation to down — the highlighted word changes accordingly
+- Arrows skip over black squares rather than landing on them or stopping short
+- At the grid edge, the selection stays where it is and nothing breaks
+- Landing on a cell that already has a letter selects its content, so typing replaces it (this is the T049 `focusCell` behaviour — confirm it still holds)
+- Tab, Space-to-toggle-direction, backspace-jump-back and auto-advance all still work as before
+- In the designer, arrows inside a clue text field still move the text caret normally
+
+---
+
 ## T046 — [BLOCKED, pending user confirmation] Mobile letter-clipping bug — likely fixed, awaiting real-device check
 
 **Not a Cursor task right now — do not pick this up.** Claude handled this directly (real-device-only bug, needed live iteration). Leaving a short record here rather than deleting, in case it resurfaces.
