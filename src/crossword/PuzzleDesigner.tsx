@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { Shuffle } from 'lucide-react';
+import { Redo2, Shuffle, Undo2 } from 'lucide-react';
 import { ShuffleConfirmModal } from '@/components/ShuffleConfirmModal';
 import { UnsavedChangesModal } from '@/components/UnsavedChangesModal';
 import {
@@ -148,11 +148,51 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
     () => initial?.clues.down ?? {},
   );
 
+  const [history, setHistory] = useState<{ past: DesignerSnapshot[]; future: DesignerSnapshot[] }>(
+    { past: [], future: [] },
+  );
+
   const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
+  const cluePanelRef = useRef<HTMLDivElement | null>(null);
+
+  const pushHistory = () => {
+    setHistory((h) => ({
+      past: [...h.past, snapshotFromState(title, rows, cluesAcross, cluesDown)].slice(-100),
+      future: [],
+    }));
+  };
+
+  const applySnapshot = (s: DesignerSnapshot) => {
+    setTitle(s.title);
+    setRows(s.rows);
+    setCluesAcross(s.cluesAcross);
+    setCluesDown(s.cluesDown);
+  };
+
+  const undo = () => {
+    setHistory((h) => {
+      if (h.past.length === 0) return h;
+      const current = snapshotFromState(title, rows, cluesAcross, cluesDown);
+      const previous = h.past[h.past.length - 1]!;
+      applySnapshot(previous);
+      return { past: h.past.slice(0, -1), future: [current, ...h.future].slice(0, 100) };
+    });
+  };
+
+  const redo = () => {
+    setHistory((h) => {
+      if (h.future.length === 0) return h;
+      const current = snapshotFromState(title, rows, cluesAcross, cluesDown);
+      const next = h.future[0]!;
+      applySnapshot(next);
+      return { past: [...h.past, current].slice(-100), future: h.future.slice(1) };
+    });
+  };
 
   const applyShuffle = () => {
     const nextTemplate = pickShuffleTemplate(lastShuffledTemplateId, rows.length);
     if (!nextTemplate) return;
+    pushHistory();
     setRows(templateToEmptySolution(nextTemplate));
     setCluesAcross({});
     setCluesDown({});
@@ -196,6 +236,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
     const { row, col } = posOf(size, cellIndex);
     if (solutionGrid[row][col] === '#') return;
 
+    pushHistory();
     setRows((prev) => {
       const next = prev.map((r) => r.split(''));
       next[row][col] = letter || ' ';
@@ -204,6 +245,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
   };
 
   const toggleBlockAt = (row: number, col: number) => {
+    pushHistory();
     setRows((prev) => {
       const next = prev.map((r) => r.split(''));
       const makeBlock = next[row][col] !== '#';
@@ -542,6 +584,19 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
     return () => window.removeEventListener('beforeunload', handler);
   }, [isDirty]);
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'z') return;
+      const active = document.activeElement;
+      if (active instanceof Node && cluePanelRef.current?.contains(active)) return;
+      e.preventDefault();
+      if (e.shiftKey) redo();
+      else undo();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [title, rows, cluesAcross, cluesDown, history]);
+
   const buildPuzzle = (status: 'draft' | 'published'): Puzzle | null => {
     if (status === 'published' && !canPublish) return null;
 
@@ -620,6 +675,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
   const autofillTestData = () => {
     if (!computed) return;
 
+    pushHistory();
     let letterIndex = 0;
     setRows((prev) =>
       prev.map((row) =>
@@ -663,7 +719,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
 
   return (
     <div className="layout layoutDesigner">
-      <div className="panel designerCluePanel">
+      <div className="panel designerCluePanel" ref={cluePanelRef}>
         <div className="panelHeader">Clues</div>
         <div className="clues">
           <div className="fieldBlock">
@@ -816,6 +872,29 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
         </div>
 
         <div className="editorToolbar">
+          <div className="toolbarSegment" role="group" aria-label="Undo and redo">
+            <button
+              type="button"
+              className="toolbarControl"
+              aria-label="Undo"
+              title="Undo"
+              disabled={history.past.length === 0}
+              onClick={undo}
+            >
+              <Undo2 size={TOOLBAR_ICON_SIZE} aria-hidden />
+            </button>
+            <button
+              type="button"
+              className="toolbarControl"
+              aria-label="Redo"
+              title="Redo"
+              disabled={history.future.length === 0}
+              onClick={redo}
+            >
+              <Redo2 size={TOOLBAR_ICON_SIZE} aria-hidden />
+            </button>
+          </div>
+
           <button
             type="button"
             className={`toolbarControl ${symmetry ? 'isActive' : ''}`}

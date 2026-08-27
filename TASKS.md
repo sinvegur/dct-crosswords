@@ -87,7 +87,7 @@ Both should now describe one mode. Something like: *"Type letters to fill answer
 
 ---
 
-## T051 — [BLOCKED, do T050 first] Undo / redo in the builder
+## T051 — [READY FOR REVIEW] Undo / redo in the builder
 
 **Do not start until T050 is merged** — this fills the toolbar slot that T050 empties, so the two will conflict otherwise.
 
@@ -154,6 +154,8 @@ const undo = () => {
 - Buttons disable correctly at both ends of the stack
 - Cmd+Z inside a clue input still does normal text undo and does **not** revert the grid
 - Undo back to the original state and confirm leaving the page doesn't prompt "unsaved changes"; make one edit and confirm it does
+
+**Implementation notes:** Selection / cursor position is not restored on undo (out of scope). Keyboard undo/redo is skipped when focus is inside the clues panel (title + clue fields), so native text undo still works there.
 
 ---
 
