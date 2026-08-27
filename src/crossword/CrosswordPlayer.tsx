@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { CheckCheck, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Puzzle } from './types';
 import { type Direction, type Entry, computeEntries } from './engine';
 import {
@@ -110,6 +110,8 @@ type GridCellProps = {
   showNumber: boolean;
   isActiveCell: boolean;
   isCurrentCell: boolean;
+  isLocked: boolean;
+  isWrong: boolean;
   isMobile: boolean;
   fontSizePx: number | null;
   inputsRef: React.RefObject<Array<HTMLInputElement | null>>;
@@ -127,6 +129,8 @@ const GridCell = memo(function GridCell({
   showNumber,
   isActiveCell,
   isCurrentCell,
+  isLocked,
+  isWrong,
   isMobile,
   fontSizePx,
   inputsRef,
@@ -138,7 +142,9 @@ const GridCell = memo(function GridCell({
 }: GridCellProps) {
   return (
     <div
-      className={`cell ${isActiveCell ? 'cellActive' : ''} ${isCurrentCell ? 'cellCurrent' : ''}`}
+      className={`cell ${isActiveCell ? 'cellActive' : ''} ${isCurrentCell ? 'cellCurrent' : ''} ${
+        isLocked ? 'cellLocked' : ''
+      } ${isWrong ? 'cellWrong' : ''}`}
       onMouseDown={() => onMouseDownCell(cellIndex)}
       onClick={() => onPickCell(cellIndex, { fromClick: true })}
     >
@@ -168,11 +174,11 @@ function progressKey(puzzleId: string) {
 function loadProgress(
   puzzleId: string,
   cellCount: number,
-): { filled: string[]; startAtMs: number } | null {
+): { filled: string[]; startAtMs: number; locked: number[] } | null {
   try {
     const raw = localStorage.getItem(progressKey(puzzleId));
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as { filled?: unknown; startAtMs?: unknown };
+    const parsed = JSON.parse(raw) as { filled?: unknown; startAtMs?: unknown; locked?: unknown };
     if (!Array.isArray(parsed.filled) || parsed.filled.length !== cellCount) return null;
     if (!parsed.filled.every((c) => typeof c === 'string')) return null;
     if (
@@ -182,7 +188,14 @@ function loadProgress(
     ) {
       return null;
     }
-    return { filled: parsed.filled as string[], startAtMs: parsed.startAtMs };
+    let locked: number[] = [];
+    if (Array.isArray(parsed.locked)) {
+      const valid = parsed.locked.every(
+        (i) => typeof i === 'number' && Number.isInteger(i) && i >= 0 && i < cellCount,
+      );
+      if (valid) locked = parsed.locked as number[];
+    }
+    return { filled: parsed.filled as string[], startAtMs: parsed.startAtMs, locked };
   } catch {
     return null;
   }
@@ -264,6 +277,11 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
   });
   const [elapsedMs, setElapsedMs] = useState<number | null>(null);
   const [solved, setSolved] = useState(false);
+  const [lockedCells, setLockedCells] = useState<Set<number>>(() => {
+    const saved = loadProgress(puzzle.id, cellCount);
+    return new Set(saved?.locked ?? []);
+  });
+  const [wrongCells, setWrongCells] = useState<Set<number>>(new Set());
 
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [userRank, setUserRank] = useState<number | null>(null);
@@ -292,6 +310,8 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
       setActiveCellIndex(null);
     }
     setStartAtMs(saved?.startAtMs ?? Date.now());
+    setLockedCells(new Set(saved?.locked ?? []));
+    setWrongCells(new Set());
     setSolved(false);
     setElapsedMs(null);
     setLeaderboard([]);
@@ -305,9 +325,9 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     if (solved) return;
     localStorage.setItem(
       progressKey(puzzle.id),
-      JSON.stringify({ filled, startAtMs }),
+      JSON.stringify({ filled, startAtMs, locked: Array.from(lockedCells) }),
     );
-  }, [filled, startAtMs, puzzle.id, solved]);
+  }, [filled, startAtMs, lockedCells, puzzle.id, solved]);
 
   useEffect(() => {
     const key = `dct-crosswords:bestTime:${puzzle.id}`;
@@ -506,10 +526,19 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     const lastCell = targetIndices[targetIndices.length - 1]!;
     // Matches the existing same-entry cascade below: backspacing across an
     // entry boundary should delete that cell's letter in the same action,
-    // not just navigate to it and require a second backspace.
-    const nextFilled = filled.slice();
-    nextFilled[lastCell] = '';
-    setFilled(nextFilled);
+    // not just navigate to it and require a second backspace. Locked cells
+    // stay put — still land there, don't clear.
+    if (!lockedCells.has(lastCell)) {
+      const nextFilled = filled.slice();
+      nextFilled[lastCell] = '';
+      setFilled(nextFilled);
+      setWrongCells((prev) => {
+        if (!prev.has(lastCell)) return prev;
+        const next = new Set(prev);
+        next.delete(lastCell);
+        return next;
+      });
+    }
     setActiveDirection(target.direction);
     setActiveEntryNumber(target.entry.number);
     setActiveCellIndex(lastCell);
@@ -543,9 +572,17 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     }
 
     const prev = indices[pos - 1]!;
-    const nextFilled = filled.slice();
-    nextFilled[prev] = '';
-    setFilled(nextFilled);
+    if (!lockedCells.has(prev)) {
+      const nextFilled = filled.slice();
+      nextFilled[prev] = '';
+      setFilled(nextFilled);
+      setWrongCells((w) => {
+        if (!w.has(prev)) return w;
+        const next = new Set(w);
+        next.delete(prev);
+        return next;
+      });
+    }
     handlePickCell(prev);
     focusCell(prev);
     setActiveCellIndex(prev);
@@ -695,6 +732,24 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     }
   };
 
+  const runCheck = () => {
+    if (solved) return;
+    const nextLocked = new Set(lockedCells);
+    const nextWrong = new Set<number>();
+    for (let i = 0; i < solutionChars.length; i++) {
+      if (blockSet.has(i)) continue;
+      const letter = filled[i];
+      if (!letter) continue;
+      if (letter === solutionChars[i]) {
+        nextLocked.add(i);
+      } else {
+        nextWrong.add(i);
+      }
+    }
+    setLockedCells(nextLocked);
+    setWrongCells(nextWrong);
+  };
+
   const solveInstantly = () => {
     const nextFilled = filled.slice();
     for (let i = 0; i < solutionChars.length; i++) {
@@ -708,6 +763,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
   const onCellInputChange = (cellIndex: number, raw: string) => {
     if (solved) return;
     if (blockSet.has(cellIndex)) return;
+    if (lockedCells.has(cellIndex)) return;
     handlePickCell(cellIndex);
 
     const wasEmpty = !filled[cellIndex];
@@ -721,6 +777,12 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     }
 
     setFilled(next);
+    setWrongCells((prev) => {
+      if (!prev.has(cellIndex)) return prev;
+      const nextWrong = new Set(prev);
+      nextWrong.delete(cellIndex);
+      return nextWrong;
+    });
     finishIfSolved(next);
 
     if (!letter) return;
@@ -744,6 +806,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
 
   const handleKeyboardBackspace = () => {
     if (activeCellIndex == null || solved) return;
+    if (lockedCells.has(activeCellIndex) && filled[activeCellIndex]) return;
     if (filled[activeCellIndex]) {
       onCellInputChange(activeCellIndex, '');
     } else {
@@ -819,6 +882,10 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
         return;
       }
       if (e.key === 'Backspace') {
+        if (lockedCells.has(cellIndex)) {
+          e.preventDefault();
+          return;
+        }
         if (filled[cellIndex]) {
           return;
         }
@@ -937,6 +1004,23 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
             }}
           >
             <SolverTimer startAtMs={startAtMs} solved={solved} elapsedMs={elapsedMs} />
+            {!solved ? (
+              isMobile ? (
+                <button
+                  type="button"
+                  className="toolbarControl"
+                  aria-label="Check puzzle"
+                  title="Check puzzle"
+                  onClick={runCheck}
+                >
+                  <CheckCheck size={16} aria-hidden />
+                </button>
+              ) : (
+                <button type="button" className="btn" onClick={runCheck}>
+                  Check
+                </button>
+              )
+            ) : null}
             {!solved && !isMobile ? (
               <button type="button" className="btn" onClick={solveInstantly}>
                 Solve it
@@ -1074,6 +1158,8 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
                       showNumber={showCellNumbers}
                       isActiveCell={activeEntryCellIndices.has(cellIndex)}
                       isCurrentCell={activeCellIndex === cellIndex}
+                      isLocked={lockedCells.has(cellIndex)}
+                      isWrong={wrongCells.has(cellIndex)}
                       isMobile={isMobile}
                       fontSizePx={fontSizePx}
                       inputsRef={inputsRef}

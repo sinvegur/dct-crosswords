@@ -12,7 +12,7 @@ Task queue for handing work from Claude (planning/review) to Cursor (implementat
 
 ---
 
-## T053 — [TODO] "Check" in the solver: lock correct letters, mark wrong ones
+## T053 — [READY FOR REVIEW] "Check" in the solver: lock correct letters, mark wrong ones
 
 Solver-side feature, modelled on the NYT crossword. The user presses **Check**; every filled square is compared against the solution:
 
@@ -84,6 +84,8 @@ Check `.cell` doesn't already set `position` in a way that breaks this, and make
 - Reload the page mid-solve: blue locked squares are still blue and still locked
 - The button is reachable on mobile without the controls row wrapping or the grid shrinking
 - A puzzle solved normally still completes, times, and posts to the leaderboard as before
+
+**Implementation notes:** Backspace while *on* a locked square is a no-op (doesn't cascade). Jump-from-empty / previous-entry still navigates onto a locked square without clearing it. Malformed `locked` in old saves is ignored; `filled` still loads.
 
 ---
 
