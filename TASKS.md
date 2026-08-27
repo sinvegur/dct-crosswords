@@ -12,6 +12,73 @@ Task queue for handing work from Claude (planning/review) to Cursor (implementat
 
 ---
 
+## T055 — [TODO] Replace Shuffle with "link clues"; tint linked squares in both grids
+
+Shuffle picks a different starting template, but every size now ships exactly one template, so it does nothing useful. Remove it and use the toolbar slot for linked clues instead — the NYT "With 17-Across, …" pattern, for multi-part or themed answers.
+
+### Data model
+
+Links live **inside the existing `clues` JSONB**, so no Supabase migration is needed. In `src/crossword/types.ts`:
+
+```ts
+clues: {
+  across: Record<number, string>;
+  down: Record<number, string>;
+  /** Groups of 2+ entries that belong together. Optional - older puzzles have none. */
+  links?: Array<Array<{ direction: Direction; number: number }>>;
+};
+```
+
+`savePuzzle` already persists `puzzle.clues` wholesale, so it should carry through with no storage changes — **verify that**, don't assume it.
+
+Rules:
+- A group has **at least 2** entries.
+- **An entry may belong to at most one group.** If the user picks an entry that's already in a group, replace its old membership.
+- Groups referencing entries that no longer exist (the constructor changed the grid) must be ignored when rendering and dropped on save. Don't crash on stale links.
+
+### Builder
+
+**1. Remove Shuffle completely** — the toolbar button, `applyShuffle`, `requestShuffle`, `pickShuffleTemplate`, `lastShuffledTemplateId`, `shuffleConfirmOpen`, the `Shuffle` icon import, and `src/components/ShuffleConfirmModal.tsx` (used nowhere else — confirm before deleting).
+
+**2. Two toolbar buttons** where Shuffle was, matching the existing `toolbarControl` styling and `TOOLBAR_ICON_SIZE`:
+- **Link** (`Link2` from lucide) — `aria-label="Link clues"`
+- **Unlink** (`Unlink2`) — `aria-label="Remove all clue links"`, disabled when there are no links
+
+**3. Linking flow.** Pressing Link enters a linking mode:
+- The status bar explains it: *"Select 2 or more clues to link, then press Link again to confirm."*
+- While in this mode, clicking a **clue row** in the Across/Down lists toggles its selection instead of jumping to that cell. Selected rows need a clear visual state (reuse or extend `.clueActive`-style treatment; don't invent a new palette).
+- Pressing Link again commits the group if 2+ are selected, and exits the mode. With fewer than 2 selected, exit without creating anything.
+- Pressing Escape cancels and exits without creating anything.
+- Typing in a clue's text input must still work normally while in this mode — only the row click changes behaviour.
+
+**4. Unlink** opens a confirmation, reusing the existing modal pattern (`DeletePuzzleConfirmModal` / the removed `ShuffleConfirmModal` are the models): *"Remove all clue links? This can't be undone from here."* — Yes / No. It clears **every** group. Deliberately blunt: no per-group editing for now.
+
+**5. Undo must cover links.** `DesignerSnapshot` is `{title, rows, cluesAcross, cluesDown}` and drives both undo/redo and the unsaved-changes check. **Add links to it**, or creating and removing links won't be undoable and won't mark the puzzle dirty — meaning a link change could be silently lost on navigate-away.
+
+### Both grids
+
+When the active entry belongs to a link group, the **grid squares** of the other entries in that group get a mild tint. Applies in `CrosswordPlayer.tsx` and `PuzzleDesigner.tsx` alike.
+
+- New CSS class, e.g. `.cellLinked`, with a **subtle** background — clearly weaker than `.cellActive` (`--cell-bg-active`, the current-word tint) so it reads as secondary information, and it must never override `.cellActive`, `.cellCurrent`, `.cellLocked` or `.cellWrong` where those also apply. Add a `--cell-bg-linked` variable next to the existing cell colour variables rather than hard-coding.
+- The active entry's own squares keep their normal active highlight; only the *linked* entries get the new tint.
+- Black squares are never tinted.
+- In the solver, suppress it when `solved` is true — the finished grid stays clean, matching how the check marks and active highlights already behave there.
+
+**Don't** modify clue text automatically. The constructor writes "With 17-Across, …" themselves if they want it spelled out; the tint reinforces, it doesn't replace.
+
+**Testing:**
+- Build a puzzle, link 1-Across and 3-Down, save, reload it from the puzzle list — the link survives
+- Selecting 1-Across mildly tints 3-Down's squares, and vice versa, in both the builder and the solver
+- The tint is clearly weaker than the active-word highlight and doesn't obscure letters or cell numbers
+- Linking a clue that's already in a group moves it rather than putting it in two
+- Undo reverses a link creation; redo reapplies it
+- Unlink asks for confirmation and clears everything; the button is disabled when there are no links
+- Delete a linked entry by adding black squares, then save and reopen — no crash, the stale link is gone
+- An older puzzle with no `links` key opens and plays normally
+- Nothing named Shuffle remains anywhere in the codebase
+
+---
+
 ## T046 — [BLOCKED, pending user confirmation] Mobile letter-clipping bug — likely fixed, awaiting real-device check
 
 **Not a Cursor task right now — do not pick this up.** Claude handled this directly (real-device-only bug, needed live iteration). Leaving a short record here rather than deleting, in case it resurfaces.
