@@ -85,6 +85,76 @@ Both should now describe one mode. Something like: *"Type letters to fill answer
 
 ---
 
+## T051 — [BLOCKED, do T050 first] Undo / redo in the builder
+
+**Do not start until T050 is merged** — this fills the toolbar slot that T050 empties, so the two will conflict otherwise.
+
+Once `.` blackens squares (T050), a stray keystroke can destroy letters: `toggleBlockAt` clears the square's letter and, with 180° symmetry on, the mirrored square's letter too — and that second one is across the grid where you won't notice it. There is currently no undo anywhere in the app. This adds one.
+
+**Scope: grid edits only.** Undo covers letters, black squares, shuffle and autofill. It deliberately does **not** cover clue text or the title — those are ordinary `<input>` fields where the browser's own Cmd+Z already works well, and hijacking it would make them worse.
+
+**1. Reuse the existing snapshot machinery.** `DesignerSnapshot` (`{title, rows, cluesAcross, cluesDown}`) and `snapshotFromState()` already exist for dirty-tracking. Use the same type for history entries — don't invent a parallel one.
+
+```tsx
+const [history, setHistory] = useState<{ past: DesignerSnapshot[]; future: DesignerSnapshot[] }>(
+  { past: [], future: [] },
+);
+
+// Call BEFORE applying a mutation, so the snapshot captures the pre-change state.
+const pushHistory = () => {
+  setHistory((h) => ({
+    past: [...h.past, snapshotFromState(title, rows, cluesAcross, cluesDown)].slice(-100),
+    future: [],
+  }));
+};
+```
+
+Cap at 100 entries as shown. Any new edit clears the redo stack — that's standard and expected.
+
+**2. Call `pushHistory()` at the start of exactly four places:**
+- `setCellLetter` — covers typing and backspace, including the T049 backspace-jump-back cascade
+- `toggleBlockAt` — covers `.` and click-to-unblacken
+- `applyShuffle`
+- `autofillTestData`
+
+One user keystroke should produce one history entry. Check that a single backspace that jumps to the previous entry and clears it records **one** entry, not two.
+
+**3. Apply undo/redo** by restoring a snapshot into `setTitle` / `setRows` / `setCluesAcross` / `setCluesDown`:
+
+```tsx
+const undo = () => {
+  setHistory((h) => {
+    if (h.past.length === 0) return h;
+    const current = snapshotFromState(title, rows, cluesAcross, cluesDown);
+    const previous = h.past[h.past.length - 1]!;
+    applySnapshot(previous);
+    return { past: h.past.slice(0, -1), future: [current, ...h.future].slice(0, 100) };
+  });
+};
+```
+...and `redo` as the mirror image. Write a small `applySnapshot(s)` helper that sets all four pieces of state.
+
+**Don't touch `baselineRef` or the `isDirty` logic.** `isDirty` compares live state against the baseline via a `useMemo`, so it recomputes correctly on its own — including the case where undoing all the way back leaves the puzzle genuinely unmodified, which should correctly report "not dirty."
+
+**4. Buttons in the toolbar**, in the `toolbarSegment` that T050 emptied (where Letter/Block used to be). Use `Undo2` and `Redo2` from `lucide-react`, matching the existing `toolbarControl` styling and `TOOLBAR_ICON_SIZE`. Disable each when its stack is empty — the existing disabled styling already handles the visual state. Give them `aria-label` and `title` of "Undo" / "Redo".
+
+**5. Keyboard shortcuts:** Cmd+Z / Ctrl+Z for undo, Cmd+Shift+Z / Ctrl+Shift+Z for redo.
+
+**Only when focus is not in a text input.** If the user is typing in a clue or the title field, let the event through untouched so the browser's native text undo still works. Grid cells are inputs too, so check for the clue/title fields specifically rather than testing for `INPUT` generally — e.g. skip when `document.activeElement` is inside the clues panel or is the title field.
+
+**Out of scope:** restoring cursor position / selected cell as part of undo. If it's trivial to also restore `activeCellIndex`, fine, but don't build machinery for it — note it and move on.
+
+**Testing:**
+- Type several letters, undo repeatedly — each press steps back exactly one letter
+- Blacken a square with `.` under 180° symmetry, then undo — **both** the square and its mirror come back, with their letters intact. This is the case the whole task exists for.
+- Redo re-applies; making a fresh edit after undoing clears the redo stack
+- Shuffle, then undo — the previous grid returns
+- Buttons disable correctly at both ends of the stack
+- Cmd+Z inside a clue input still does normal text undo and does **not** revert the grid
+- Undo back to the original state and confirm leaving the page doesn't prompt "unsaved changes"; make one edit and confirm it does
+
+---
+
 ## T046 — [BLOCKED, pending user confirmation] Mobile letter-clipping bug — likely fixed, awaiting real-device check
 
 **Not a Cursor task right now — do not pick this up.** Claude handled this directly (real-device-only bug, needed live iteration). Leaving a short record here rather than deleting, in case it resurfaces.
