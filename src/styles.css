@@ -179,7 +179,12 @@ textarea {
   min-height: 0;
   width: 100%;
   display: flex;
-  align-items: center;
+  /* Top-aligned, not centered: this wrapper takes all the leftover height,
+     so centering pushed the grid away from the clue bar and left a gap
+     above it whenever the grid was shorter than the space available.
+     Horizontal centering is still wanted. Mobile overrides flex-grow
+     below, where this doesn't apply. */
+  align-items: flex-start;
   justify-content: center;
 }
 
