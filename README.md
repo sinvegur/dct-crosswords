@@ -8,6 +8,12 @@ Built as a personal project, with full Turkish character support (İ/ı, Ğ, Ş,
 
 [dctcrosswords.online](https://dctcrosswords.online)
 
+![The solver on desktop — clue lists, grid with the active word highlighted, live timer](docs/screenshot-desktop.png)
+
+<p align="center">
+  <img src="docs/screenshot-mobile.png" width="330" alt="The solver on mobile, with the built-in QWERTY keyboard and its Turkish letter panel">
+</p>
+
 ## Features
 
 **Constructing (signed in)**
