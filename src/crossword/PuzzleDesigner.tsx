@@ -836,8 +836,15 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
       <div className="panel designerGridPanel">
         <div className="controlsRow">
           <div className="controlsRowCopy">
-            <div className="title" style={{ fontSize: 16 }}>
-              Design
+            <div className="puzzleTitleRow">
+              <div className="title" style={{ fontSize: 16 }}>
+                Design
+              </div>
+              <span
+                className={`puzzleStatus ${initial?.status === 'published' ? 'isPublished' : 'isDraft'}`}
+              >
+                {initial?.status === 'published' ? 'Published' : 'Draft'}
+              </span>
             </div>
             <div className="subtle designHint">
               Type letters to fill answers. Type a full stop (.) for a black square — click a black

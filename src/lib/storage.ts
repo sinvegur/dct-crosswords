@@ -150,6 +150,11 @@ export async function savePuzzle(puzzle: Puzzle): Promise<Puzzle> {
   return rowToPuzzle(data as PuzzleRow);
 }
 
+export async function setPuzzleStatus(id: string, status: PuzzleStatus): Promise<void> {
+  const { error } = await supabase.from('puzzles').update({ status }).eq('id', id);
+  if (error) throw error;
+}
+
 export async function deletePuzzle(id: string): Promise<void> {
   const { error } = await supabase.from('puzzles').delete().eq('id', id);
   if (error) throw error;

@@ -12,7 +12,7 @@ Task queue for handing work from Claude (planning/review) to Cursor (implementat
 
 ---
 
-## T056 — [TODO] Unpublish a published puzzle, and show its status in the builder
+## T056 — [READY FOR REVIEW] Unpublish a published puzzle, and show its status in the builder
 
 Two related pieces. Once a puzzle is published there's currently no way back — only Delete, which destroys it. Unpublishing returns it to draft so it can be fixed and republished later.
 
@@ -67,6 +67,8 @@ It reflects the puzzle's **saved** status (`initial?.status`), not unsaved edits
 - Republish it: the link works again and the old leaderboard times are still there
 - Cancelling the modal changes nothing
 - The builder shows the correct Published/Draft badge, matching the list
+
+**Implementation notes:** New (never-saved) puzzles show Draft, since `initial` is undefined. Unpublish sits between Edit and Delete.
 
 ---
 

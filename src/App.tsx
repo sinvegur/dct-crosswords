@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, Link2, PencilLine, Play, Trash2, Trophy } from 'lucide-react';
+import { Check, EyeOff, Link2, PencilLine, Play, Trash2, Trophy } from 'lucide-react';
 import {
   BrowserRouter,
   Navigate,
@@ -13,6 +13,7 @@ import { CrosswordPlayer, SOLVER_NAME_KEY } from '@/crossword/CrosswordPlayer';
 import { PuzzleDesigner } from '@/crossword/PuzzleDesigner';
 import { StartingGridModal } from '@/components/StartingGridModal';
 import { DeletePuzzleConfirmModal } from '@/components/DeletePuzzleConfirmModal';
+import { UnpublishConfirmModal } from '@/components/UnpublishConfirmModal';
 import { PuzzleLeaderboardModal } from '@/components/PuzzleLeaderboardModal';
 import { PublishSuccessModal } from '@/components/PublishSuccessModal';
 import {
@@ -29,6 +30,7 @@ import {
   getPuzzleBySlug,
   listPuzzles,
   savePuzzle,
+  setPuzzleStatus,
 } from '@/lib/storage';
 import { runGuarded } from '@/lib/navigationGuard';
 
@@ -287,9 +289,11 @@ function HomePage({
   const navigate = useNavigate();
   const [actionError, setActionError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Puzzle | null>(null);
+  const [unpublishTarget, setUnpublishTarget] = useState<Puzzle | null>(null);
   const [leaderboardTarget, setLeaderboardTarget] = useState<Puzzle | null>(null);
   const [copiedPuzzleId, setCopiedPuzzleId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [unpublishing, setUnpublishing] = useState(false);
 
   const copyPuzzleLink = async (puzzle: Puzzle) => {
     if (!puzzle.slug) return;
@@ -301,6 +305,21 @@ function HomePage({
       }, 2000);
     } catch {
       setCopiedPuzzleId(null);
+    }
+  };
+
+  const confirmUnpublish = async () => {
+    if (!unpublishTarget) return;
+    setActionError(null);
+    setUnpublishing(true);
+    try {
+      await setPuzzleStatus(unpublishTarget.id, 'draft');
+      setUnpublishTarget(null);
+      onRefresh();
+    } catch (err) {
+      setActionError(errorMessage(err));
+    } finally {
+      setUnpublishing(false);
     }
   };
 
@@ -400,6 +419,20 @@ function HomePage({
                 <button
                   type="button"
                   className="toolbarControl"
+                  aria-label="Unpublish"
+                  title={
+                    p.status === 'published'
+                      ? 'Unpublish'
+                      : 'Publish this puzzle to enable Unpublish'
+                  }
+                  disabled={p.status !== 'published'}
+                  onClick={() => setUnpublishTarget(p)}
+                >
+                  <EyeOff size={ROW_ACTION_ICON_SIZE} aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  className="toolbarControl"
                   aria-label="Delete"
                   title="Delete"
                   onClick={() => setDeleteTarget(p)}
@@ -444,6 +477,16 @@ function HomePage({
         open={leaderboardTarget != null}
         puzzle={leaderboardTarget}
         onClose={() => setLeaderboardTarget(null)}
+      />
+
+      <UnpublishConfirmModal
+        open={unpublishTarget != null}
+        puzzleTitle={unpublishTarget?.title ?? ''}
+        unpublishing={unpublishing}
+        onClose={() => {
+          if (!unpublishing) setUnpublishTarget(null);
+        }}
+        onConfirm={() => void confirmUnpublish()}
       />
 
       <DeletePuzzleConfirmModal
