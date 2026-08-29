@@ -52,6 +52,25 @@ function normalizeLetter(raw: string) {
   return ch.toLocaleUpperCase('tr-TR');
 }
 
+// Solvers reach the grid from whatever keyboard they happen to have, and an
+// English one cannot produce İ Ç Ğ Ö Ş Ü at all. A Turkish letter and its
+// plain ASCII counterpart therefore have to satisfy each other when checking
+// an answer - in both directions, since older puzzles were built with plain I
+// where Turkish spelling wants İ. This is a comparison rule only: what the
+// solver typed is still what gets displayed while solving.
+const LETTER_FOLD: Record<string, string> = {
+  İ: 'I', ı: 'I', i: 'I',
+  Ç: 'C', ç: 'C',
+  Ğ: 'G', ğ: 'G',
+  Ö: 'O', ö: 'O',
+  Ş: 'S', ş: 'S',
+  Ü: 'U', ü: 'U',
+};
+
+function foldLetter(ch: string) {
+  return LETTER_FOLD[ch] ?? ch;
+}
+
 export function formatElapsedMs(ms: number): string {
   const totalSec = Math.max(0, Math.floor(ms / 1000));
   const min = Math.floor(totalSec / 60);
@@ -440,7 +459,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     for (let i = 0; i < solutionChars.length; i++) {
       if (blockSet.has(i)) continue;
       if (!nextFilled[i]) return false;
-      if (nextFilled[i] !== solutionChars[i]) return false;
+      if (foldLetter(nextFilled[i]!) !== foldLetter(solutionChars[i]!)) return false;
     }
     return true;
   };
@@ -750,6 +769,13 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     if (solved) return;
     if (!checkSolved(nextFilled)) return;
 
+    const snapped = nextFilled.slice();
+    for (let i = 0; i < solutionChars.length; i++) {
+      if (blockSet.has(i)) continue;
+      snapped[i] = solutionChars[i]!;
+    }
+    setFilled(snapped);
+
     const elapsed = Date.now() - startAtMs;
     setSolved(true);
     setElapsedMs(elapsed);
@@ -772,7 +798,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
       if (blockSet.has(i)) continue;
       const letter = filled[i];
       if (!letter) continue;
-      if (letter === solutionChars[i]) {
+      if (foldLetter(letter) === foldLetter(solutionChars[i]!)) {
         nextLocked.add(i);
       } else {
         nextWrong.add(i);
