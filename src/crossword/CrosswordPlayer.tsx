@@ -52,6 +52,41 @@ function normalizeLetter(raw: string) {
   return ch.toLocaleUpperCase('tr-TR');
 }
 
+// Solvers reach the grid from whatever keyboard they happen to have, and an
+// English one cannot produce İ Ç Ğ Ö Ş Ü at all. A Turkish letter and its
+// plain ASCII counterpart therefore have to satisfy each other when checking
+// an answer - in both directions, since older puzzles were built with plain I
+// where Turkish spelling wants İ. This is a comparison rule only: what the
+// solver typed is still what gets displayed while solving.
+const LETTER_FOLD: Record<string, string> = {
+  İ: 'I', ı: 'I', i: 'I',
+  Ç: 'C', ç: 'C',
+  Ğ: 'G', ğ: 'G',
+  Ö: 'O', ö: 'O',
+  Ş: 'S', ş: 'S',
+  Ü: 'U', ü: 'U',
+};
+
+function foldLetter(ch: string) {
+  return LETTER_FOLD[ch] ?? ch;
+}
+
+// Matching ASCII/Turkish forms snap to the builder's spelling as soon as
+// they are typed. That does confirm the letter is correct. Accepted: Check
+// already marks every right/wrong cell for free with no penalty, and
+// attempts only store name and time.
+function storedLetterForCell(typed: string, solution: string | undefined) {
+  if (!typed) return '';
+  if (solution && solution !== '#' && foldLetter(typed) === foldLetter(solution)) {
+    return solution;
+  }
+  return typed;
+}
+
+function snapFilledToBuilderSpelling(filled: string[], solutionChars: string[]) {
+  return filled.map((ch, i) => storedLetterForCell(ch, solutionChars[i]));
+}
+
 export function formatElapsedMs(ms: number): string {
   const totalSec = Math.max(0, Math.floor(ms / 1000));
   const min = Math.floor(totalSec / 60);
@@ -226,7 +261,8 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
 
   const [filled, setFilled] = useState<string[]>(() => {
     const saved = loadProgress(puzzle.id, cellCount);
-    return saved?.filled ?? Array.from({ length: cellCount }, () => '');
+    const raw = saved?.filled ?? Array.from({ length: cellCount }, () => '');
+    return snapFilledToBuilderSpelling(raw, solutionChars);
   });
 
   const submittedRef = useRef(false);
@@ -329,7 +365,10 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
 
   useEffect(() => {
     const saved = loadProgress(puzzle.id, cellCount);
-    const nextFilled = saved?.filled ?? Array.from({ length: cellCount }, () => '');
+    const nextFilled = snapFilledToBuilderSpelling(
+      saved?.filled ?? Array.from({ length: cellCount }, () => ''),
+      solutionChars,
+    );
     setFilled(nextFilled);
     const firstAcross = computed.entriesAcross[0];
     if (firstAcross) {
@@ -355,7 +394,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     setAttemptId(null);
     setSubmitError(null);
     submittedRef.current = false;
-  }, [puzzle.id, cellCount, computed, size]);
+  }, [puzzle.id, cellCount, computed, size, solutionChars]);
 
   // Re-select the focused cell's letter after every edit. The inputs are
   // maxLength=1, so once one holds a character an unselected caret sits
@@ -440,7 +479,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     for (let i = 0; i < solutionChars.length; i++) {
       if (blockSet.has(i)) continue;
       if (!nextFilled[i]) return false;
-      if (nextFilled[i] !== solutionChars[i]) return false;
+      if (foldLetter(nextFilled[i]!) !== foldLetter(solutionChars[i]!)) return false;
     }
     return true;
   };
@@ -750,6 +789,13 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     if (solved) return;
     if (!checkSolved(nextFilled)) return;
 
+    const snapped = nextFilled.slice();
+    for (let i = 0; i < solutionChars.length; i++) {
+      if (blockSet.has(i)) continue;
+      snapped[i] = solutionChars[i]!;
+    }
+    setFilled(snapped);
+
     const elapsed = Date.now() - startAtMs;
     setSolved(true);
     setElapsedMs(elapsed);
@@ -772,7 +818,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
       if (blockSet.has(i)) continue;
       const letter = filled[i];
       if (!letter) continue;
-      if (letter === solutionChars[i]) {
+      if (foldLetter(letter) === foldLetter(solutionChars[i]!)) {
         nextLocked.add(i);
       } else {
         nextWrong.add(i);
@@ -795,7 +841,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     if (!letter) {
       next[cellIndex] = '';
     } else {
-      next[cellIndex] = letter;
+      next[cellIndex] = storedLetterForCell(letter, solutionChars[cellIndex]);
     }
 
     setFilled(next);
