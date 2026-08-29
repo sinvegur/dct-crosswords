@@ -12,7 +12,50 @@ Task queue for handing work from Claude (planning/review) to Cursor (implementat
 
 ---
 
-## T057 — [READY FOR REVIEW] Accept plain ASCII letters as matches for Turkish ones
+## T058 — [READY FOR REVIEW] Show the builder's spelling as soon as a matching letter is typed
+
+Builds directly on T057 — **work on the same `turkish-letter-fold` branch**, so the two merge as one PR.
+
+T057 made `c` count as `Ç`, but the cell still displays `C` until the whole puzzle is solved. So a solver working through Popçular. on an English keyboard reads their own grid as `POPCULAR`. Since the builder always enters the correct form, the grid can just show his form the moment the solver types anything that matches it.
+
+Rule: **when a typed letter matches the solution letter under the T057 fold but differs in form, store the solution's form.** `c` in a `Ç` cell becomes `Ç`; `i` in an `İ` cell becomes `İ`; `İ` in a plain `I` cell becomes `I`. A letter that does not match is stored exactly as typed and stays wrong.
+
+### 1. On type — `onCellInputChange` (around line 786)
+
+After `normalizeLetter` produces `letter`, if the cell has a solution letter and `foldLetter(letter) === foldLetter(solutionChars[cellIndex])`, write `solutionChars[cellIndex]` into `next[cellIndex]` instead of `letter`.
+
+This is the only letter-commit path in the component — `handleKeyboardLetter` (line 870) routes through `onCellInputChange`, so the on-screen Turkish panel is covered by the same change. Do not add a second copy of this logic anywhere.
+
+### 2. On restore of saved progress
+
+`filled` is persisted to localStorage (`progressKey`) and restored straight into state without passing through `onCellInputChange`. Apply the same snap once to the restored array, so a puzzle already half-solved with ASCII letters redraws in the builder's spelling instead of waiting for each cell to be retyped. DCT almost certainly has exactly this: a Popçular. attempt with `C` sitting in `Ç` cells.
+
+### 3. Keep T057's on-solve snap
+
+Leave the `finishIfSolved` snap in place. With this task it is mostly redundant, but it costs nothing and guarantees the finished grid is canonical no matter which path filled a cell.
+
+### On the obvious objection — this is deliberate, do not "fix" it later
+
+Snapping mid-solve confirms to the solver that their letter is correct. That is accepted here: **Check** is a free, unlimited, unpenalized button in the toolbar that already marks every wrong cell and locks every right one, and `attempts` stores only `solver_name` and `elapsed_ms`, so nothing about the result is affected by using it. The snap reveals strictly less than a button the solver already has, and only ever confirms the positive case on the six Turkish letter families. Leave a short comment at the snap saying so.
+
+### How to verify
+
+`npm run build` must pass.
+
+With `npm run dev`, open **Popçular.**:
+- Desktop width, English keyboard: typing `c` in a `Ç` cell shows `Ç` immediately; `s` in a `Ş` shows `Ş`; `i` in an `İ` shows `İ`. The whole puzzle can be solved with ASCII and reads as proper Turkish throughout.
+- A wrong letter is still stored as typed and still marked wrong by Check.
+- A cell whose answer is a plain ASCII letter is unaffected — typing `c` where the answer is `C` shows `C`, and typing `c` where the answer is `K` shows `C` and stays wrong.
+- Mobile width: the Turkish panel still works, and typing `İ` into a cell whose answer is plain `I` now displays `I`.
+- Fill a few `Ç`/`Ş` cells with plain ASCII, reload the page, and confirm the restored grid comes back showing the Turkish letters rather than the ASCII ones.
+
+**Implementation notes:** Shared `storedLetterForCell` / `snapFilledToBuilderSpelling` so typing and localStorage restore use the same snap. Keyboard still goes only through `onCellInputChange`. T057's on-solve snap is unchanged.
+
+---
+
+## T057 — [APPROVED, do not pick up] Accept plain ASCII letters as matches for Turkish ones
+
+**Reviewed and approved as implemented (`d62109a` on `turkish-letter-fold`) — matches the spec, build passes. Not merged yet: it ships together with T058 on the same branch, as one PR. Nothing further to do here.**
 
 **Popçular. cannot currently be finished on a desktop, and it is the first real puzzle DCT expects someone to solve in this app. It has to work on any keyboard, without the solver doing anything special.**
 
