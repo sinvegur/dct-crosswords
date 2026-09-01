@@ -200,6 +200,20 @@ const GridCell = memo(function GridCell({
         spellCheck={false}
         style={fontSizePx != null ? { fontSize: `${fontSizePx}px` } : undefined}
         onFocus={() => onFocusCell(cellIndex)}
+        onClick={
+          isMobile
+            ? undefined
+            : (e) => {
+                // A mouse click leaves an unselected caret in a maxLength=1
+                // input, and a full input silently rejects the next keystroke
+                // unless its character is selected - so a clicked cell could
+                // not be overwritten without deleting first. Selecting here,
+                // on click (after mouseup, so the browser cannot collapse it
+                // again), makes typing replace the letter like every other
+                // navigation path already does via focusCell.
+                e.currentTarget.select();
+              }
+        }
         onChange={(e) => onChangeCell(cellIndex, e.target.value)}
         onKeyDown={(e) => onKeyDownCell(cellIndex, e)}
       />
@@ -1068,21 +1082,26 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
         toggleDirectionForActiveCell();
         return;
       }
-      if (e.key === 'Backspace') {
+      if (e.key === 'Backspace' || e.key === 'Delete') {
+        // Always handled explicitly, never left to the native edit: native
+        // Backspace removes the character before the caret, and a mouse
+        // click can leave the caret on either side of the letter - which
+        // made deleting work or silently do nothing depending on which half
+        // of the cell was clicked.
+        e.preventDefault();
         if (lockedCells.has(cellIndex)) {
           // Don't just swallow the key: a locked cell can't be cleared, so
           // sitting here doing nothing leaves the cursor visibly stuck.
           // Fall back to the walk-back, which skips locked cells and lands
           // on the first one that can actually be deleted.
-          e.preventDefault();
-          backspaceEmptyCell(cellIndex);
+          if (e.key === 'Backspace') backspaceEmptyCell(cellIndex);
           return;
         }
         if (filled[cellIndex]) {
+          onCellInputChange(cellIndex, '');
           return;
         }
-        e.preventDefault();
-        backspaceEmptyCell(cellIndex);
+        if (e.key === 'Backspace') backspaceEmptyCell(cellIndex);
         return;
       }
       if (e.key === 'Escape') {
