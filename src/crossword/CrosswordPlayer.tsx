@@ -697,7 +697,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     return computed.entryByNumberDirection(resolvedDirection, entryNumber);
   };
 
-  const moveInResolvedEntry = (entry: Entry, from: number, delta: 1 | -1) => {
+  const moveInResolvedEntry = (entry: Entry, from: number, delta: 1 | -1, grid: string[] = filled) => {
     const indices = entry.cells.map((c) => idxOf(size, c.row, c.col));
     const pos = indices.indexOf(from);
     if (pos === -1) return;
@@ -705,15 +705,17 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     let nextPos = pos + delta;
     // Skip over cells already filled (e.g. from crossing a solved entry in the
     // other direction) until an empty one, or the entry's end, is reached.
-    while (nextPos >= 0 && nextPos < indices.length - 1 && filled[indices[nextPos]!]) {
+    while (nextPos >= 0 && nextPos < indices.length - 1 && grid[indices[nextPos]!]) {
       nextPos += delta;
     }
 
     const next = indices[nextPos];
     if (next == null) {
-      // End of the entry: stay put. Typing on the last square overwrites it
-      // in place rather than carrying the cursor into the next clue - moving
-      // between entries is always deliberate (Tab, Space, arrows, click).
+      // End of the entry: jump to the next clue, same as Tab. This used to
+      // stay put so the last square could be overwritten in place, but in
+      // real solving the finished word means "next", and retyping a letter
+      // is done by clicking it (which selects it for overwrite).
+      if (delta === 1) stepEntry(1, grid);
       return;
     }
     handlePickCell(next);
@@ -726,12 +728,17 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
   // cell that was already filled (correcting an answer), where the smarter
   // forward-progress behavior of moveInResolvedEntry would blow through the
   // rest of an already-fully-filled entry after a single keystroke.
-  const moveOneWithinEntry = (entry: Entry, from: number, delta: 1 | -1) => {
+  const moveOneWithinEntry = (entry: Entry, from: number, delta: 1 | -1, grid: string[] = filled) => {
     const indices = entry.cells.map((c) => idxOf(size, c.row, c.col));
     const pos = indices.indexOf(from);
     if (pos === -1) return;
     const next = indices[pos + delta];
-    if (next == null) return;
+    if (next == null) {
+      // Same rule as the fresh-typing path: the end of the entry means
+      // "next clue", not "keep replacing the last letter".
+      if (delta === 1) stepEntry(1, grid);
+      return;
+    }
     handlePickCell(next);
     focusCell(next);
     setActiveCellIndex(next);
@@ -786,11 +793,11 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     setActiveCellIndex(prev);
   };
 
-  const focusEntry = (direction: Direction, entryNumber: number) => {
+  const focusEntry = (direction: Direction, entryNumber: number, grid: string[] = filled) => {
     const entry = computed.entryByNumberDirection(direction, entryNumber);
     if (!entry || solved) return;
     const entryIndices = entry.cells.map((c) => idxOf(size, c.row, c.col));
-    const targetCell = entryIndices.find((idx) => !filled[idx]) ?? entryIndices[0]!;
+    const targetCell = entryIndices.find((idx) => !grid[idx]) ?? entryIndices[0]!;
     setActiveDirection(direction);
     setActiveEntryNumber(entryNumber);
     setActiveCellIndex(targetCell);
@@ -842,10 +849,15 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     focusCell(target);
   };
 
-  const isEntryFilled = (entry: Entry) =>
-    entry.cells.every((c) => Boolean(filled[idxOf(size, c.row, c.col)]));
+  const isEntryFilled = (entry: Entry, grid: string[] = filled) =>
+    entry.cells.every((c) => Boolean(grid[idxOf(size, c.row, c.col)]));
 
-  const stepEntry = (delta: 1 | -1) => {
+  // stepEntry takes the grid as an argument because its auto-advance caller
+  // runs right after setFilled - React state is still one keystroke behind,
+  // and judging "which entries are complete" against the stale grid could
+  // jump into an entry this very letter just finished, landing back on the
+  // same cell.
+  const stepEntry = (delta: 1 | -1, grid: string[] = filled) => {
     const combined = [
       ...computed.entriesAcross.map((entry) => ({ direction: 'across' as const, entry })),
       ...computed.entriesDown.map((entry) => ({ direction: 'down' as const, entry })),
@@ -873,8 +885,8 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
 
     for (let steps = 0; steps < combined.length; steps++) {
       const item = combined[nextIdx]!;
-      if (!isEntryFilled(item.entry)) {
-        focusEntry(item.direction, item.entry.number);
+      if (!isEntryFilled(item.entry, grid)) {
+        focusEntry(item.direction, item.entry.number, grid);
         return;
       }
       nextIdx += delta;
@@ -889,7 +901,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     // focusEntry already lands on an entry's first cell when it has no
     // empty cells left, so this naturally does the right thing here too.
     const fallback = combined[fallbackIdx]!;
-    focusEntry(fallback.direction, fallback.entry.number);
+    focusEntry(fallback.direction, fallback.entry.number, grid);
   };
 
   const toggleDirectionForActiveCell = () => {
@@ -994,9 +1006,9 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     // after a single keystroke is surprising, not helpful. Just move one cell
     // over instead.
     if (wasEmpty) {
-      moveInResolvedEntry(entry, cellIndex, 1);
+      moveInResolvedEntry(entry, cellIndex, 1, next);
     } else {
-      moveOneWithinEntry(entry, cellIndex, 1);
+      moveOneWithinEntry(entry, cellIndex, 1, next);
     }
   };
 
