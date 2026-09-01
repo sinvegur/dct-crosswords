@@ -100,10 +100,12 @@ function SolverTimer({
   startAtMs,
   solved,
   elapsedMs,
+  pausedAt,
 }: {
   startAtMs: number;
   solved: boolean;
   elapsedMs: number | null;
+  pausedAt: number | null;
 }) {
   // Isolated so the once-a-second tick only re-renders this small display,
   // not the whole CrosswordPlayer (and its full cell grid) every second.
@@ -111,12 +113,12 @@ function SolverTimer({
 
   useEffect(() => {
     setNow(Date.now());
-    if (solved) return;
+    if (solved || pausedAt != null) return;
     const id = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(id);
-  }, [startAtMs, solved]);
+  }, [startAtMs, solved, pausedAt]);
 
-  const liveElapsedMs = !solved ? now - startAtMs : elapsedMs;
+  const liveElapsedMs = solved ? elapsedMs : (pausedAt ?? now) - startAtMs;
 
   return (
     <div className="solverTimer" aria-live="polite">
@@ -212,11 +214,16 @@ function progressKey(puzzleId: string) {
 function loadProgress(
   puzzleId: string,
   cellCount: number,
-): { filled: string[]; startAtMs: number; locked: number[] } | null {
+): { filled: string[]; startAtMs: number; locked: number[]; pausedAt: number | null } | null {
   try {
     const raw = localStorage.getItem(progressKey(puzzleId));
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as { filled?: unknown; startAtMs?: unknown; locked?: unknown };
+    const parsed = JSON.parse(raw) as {
+      filled?: unknown;
+      startAtMs?: unknown;
+      locked?: unknown;
+      pausedAt?: unknown;
+    };
     if (!Array.isArray(parsed.filled) || parsed.filled.length !== cellCount) return null;
     if (!parsed.filled.every((c) => typeof c === 'string')) return null;
     if (
@@ -233,10 +240,39 @@ function loadProgress(
       );
       if (valid) locked = parsed.locked as number[];
     }
-    return { filled: parsed.filled as string[], startAtMs: parsed.startAtMs, locked };
+    const pausedAt =
+      typeof parsed.pausedAt === 'number' &&
+      Number.isFinite(parsed.pausedAt) &&
+      parsed.pausedAt >= parsed.startAtMs
+        ? parsed.pausedAt
+        : null;
+    return { filled: parsed.filled as string[], startAtMs: parsed.startAtMs, locked, pausedAt };
   } catch {
     return null;
   }
+}
+
+function startAtMsAfterPause(startAtMs: number, pausedAt: number | null | undefined) {
+  if (pausedAt == null) return startAtMs;
+  return startAtMs + Math.max(0, Date.now() - pausedAt);
+}
+
+function saveProgress(
+  puzzleId: string,
+  filled: string[],
+  startAtMs: number,
+  locked: Iterable<number>,
+  pausedAt: number | null,
+) {
+  localStorage.setItem(
+    progressKey(puzzleId),
+    JSON.stringify({
+      filled,
+      startAtMs,
+      locked: Array.from(locked),
+      ...(pausedAt != null ? { pausedAt } : {}),
+    }),
+  );
 }
 
 type Props = {
@@ -317,15 +353,22 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
 
   const [startAtMs, setStartAtMs] = useState(() => {
     const saved = loadProgress(puzzle.id, cellCount);
-    return saved?.startAtMs ?? Date.now();
+    return startAtMsAfterPause(saved?.startAtMs ?? Date.now(), saved?.pausedAt);
   });
   const [elapsedMs, setElapsedMs] = useState<number | null>(null);
   const [solved, setSolved] = useState(false);
+  const [pausedAt, setPausedAt] = useState<number | null>(null);
+  const pausedAtRef = useRef<number | null>(null);
+  const solvedRef = useRef(false);
+  const puzzleIdRef = useRef(puzzle.id);
+  const filledRef = useRef(filled);
+  const startAtMsRef = useRef(startAtMs);
   const [resultsView, setResultsView] = useState<'leaderboard' | 'grid'>('leaderboard');
   const [lockedCells, setLockedCells] = useState<Set<number>>(() => {
     const saved = loadProgress(puzzle.id, cellCount);
     return new Set(saved?.locked ?? []);
   });
+  const lockedCellsRef = useRef(lockedCells);
   const [wrongCells, setWrongCells] = useState<Set<number>>(new Set());
 
   const linkedCellIndices = useMemo(() => {
@@ -383,10 +426,21 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
       setActiveEntryNumber(null);
       setActiveCellIndex(null);
     }
-    setStartAtMs(saved?.startAtMs ?? Date.now());
+    const nextStart = startAtMsAfterPause(saved?.startAtMs ?? Date.now(), saved?.pausedAt);
+    setStartAtMs(nextStart);
+    startAtMsRef.current = nextStart;
     setLockedCells(new Set(saved?.locked ?? []));
     setWrongCells(new Set());
     setSolved(false);
+    solvedRef.current = false;
+    if (document.hidden) {
+      const now = Date.now();
+      pausedAtRef.current = now;
+      setPausedAt(now);
+    } else {
+      pausedAtRef.current = null;
+      setPausedAt(null);
+    }
     setResultsView('leaderboard');
     setElapsedMs(null);
     setLeaderboard([]);
@@ -415,13 +469,72 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     el.select();
   }, [filled, isMobile]);
 
+  puzzleIdRef.current = puzzle.id;
+  filledRef.current = filled;
+  startAtMsRef.current = startAtMs;
+  lockedCellsRef.current = lockedCells;
+  solvedRef.current = solved;
+
   useEffect(() => {
     if (solved) return;
-    localStorage.setItem(
-      progressKey(puzzle.id),
-      JSON.stringify({ filled, startAtMs, locked: Array.from(lockedCells) }),
-    );
-  }, [filled, startAtMs, lockedCells, puzzle.id, solved]);
+    saveProgress(puzzle.id, filled, startAtMs, lockedCells, pausedAtRef.current);
+  }, [filled, startAtMs, lockedCells, puzzle.id, solved, pausedAt]);
+
+  // Pause while the tab/app is not displayed (desktop hidden tab or mobile
+  // background). Window blur is ignored on purpose: a still-visible window
+  // on another monitor should keep running. pagehide/pageshow cover iOS
+  // Safari, where visibilitychange is not always enough.
+  useEffect(() => {
+    const persistPaused = (at: number | null) => {
+      if (solvedRef.current) return;
+      saveProgress(
+        puzzleIdRef.current,
+        filledRef.current,
+        startAtMsRef.current,
+        lockedCellsRef.current,
+        at,
+      );
+    };
+
+    const pause = () => {
+      if (solvedRef.current || pausedAtRef.current != null) return;
+      const now = Date.now();
+      pausedAtRef.current = now;
+      setPausedAt(now);
+      persistPaused(now);
+    };
+
+    const resume = () => {
+      if (document.hidden) return;
+      const paused = pausedAtRef.current;
+      if (paused == null) return;
+      pausedAtRef.current = null;
+      setPausedAt(null);
+      // Shift startAtMs by the away duration so wall-clock time in the
+      // background is skipped. Use a plain value, not a setState updater —
+      // StrictMode double-invokes updaters and would count the gap twice.
+      const next = startAtMsRef.current + Math.max(0, Date.now() - paused);
+      startAtMsRef.current = next;
+      setStartAtMs(next);
+      persistPaused(null);
+    };
+
+    const onVisibility = () => {
+      if (document.hidden) pause();
+      else resume();
+    };
+
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pagehide', pause);
+    window.addEventListener('pageshow', resume);
+    if (document.hidden) pause();
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pagehide', pause);
+      window.removeEventListener('pageshow', resume);
+    };
+  }, []);
 
   useEffect(() => {
     const key = `dct-crosswords:bestTime:${puzzle.id}`;
@@ -796,7 +909,8 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     }
     setFilled(snapped);
 
-    const elapsed = Date.now() - startAtMs;
+    const elapsed = (pausedAtRef.current ?? Date.now()) - startAtMs;
+    solvedRef.current = true;
     setSolved(true);
     setElapsedMs(elapsed);
     localStorage.removeItem(progressKey(puzzle.id));
@@ -1076,7 +1190,12 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
               justifyContent: 'flex-end',
             }}
           >
-            <SolverTimer startAtMs={startAtMs} solved={solved} elapsedMs={elapsedMs} />
+            <SolverTimer
+              startAtMs={startAtMs}
+              solved={solved}
+              elapsedMs={elapsedMs}
+              pausedAt={pausedAt}
+            />
             {!solved ? (
               isMobile ? (
                 <button
