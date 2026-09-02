@@ -13,6 +13,13 @@ import { useIsMobile } from '@/lib/useIsMobile';
 
 const SOLVER_NAME_KEY = 'dct-crosswords:solverName';
 
+// JS timers freeze in the background. iOS Safari often never reports the
+// page as hidden when you swipe to the home screen — it may fire pagehide
+// then an immediate pageshow for the app-switcher snapshot, then freeze.
+// A gap bigger than two 1s ticks (or a stale lastAliveAt after reload) is
+// the reliable signal that away time should be skipped.
+const AWAY_GAP_MS = 2000;
+
 const QWERTY_ROWS = [
   ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
   ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
@@ -101,22 +108,33 @@ function SolverTimer({
   solved,
   elapsedMs,
   pausedAt,
+  onAway,
 }: {
   startAtMs: number;
   solved: boolean;
   elapsedMs: number | null;
   pausedAt: number | null;
+  onAway: (gapMs: number) => void;
 }) {
   // Isolated so the once-a-second tick only re-renders this small display,
   // not the whole CrosswordPlayer (and its full cell grid) every second.
   const [now, setNow] = useState(() => Date.now());
+  const lastTickRef = useRef(Date.now());
 
   useEffect(() => {
-    setNow(Date.now());
+    const t = Date.now();
+    setNow(t);
+    lastTickRef.current = t;
     if (solved || pausedAt != null) return;
-    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    const id = window.setInterval(() => {
+      const next = Date.now();
+      const gap = next - lastTickRef.current;
+      lastTickRef.current = next;
+      if (gap > AWAY_GAP_MS) onAway(gap);
+      setNow(next);
+    }, 1000);
     return () => window.clearInterval(id);
-  }, [startAtMs, solved, pausedAt]);
+  }, [startAtMs, solved, pausedAt, onAway]);
 
   const liveElapsedMs = solved ? elapsedMs : (pausedAt ?? now) - startAtMs;
 
@@ -225,10 +243,21 @@ function progressKey(puzzleId: string) {
   return `dct-crosswords:progress:${puzzleId}`;
 }
 
+function parseTimestamp(value: unknown, min: number) {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < min) return null;
+  return value;
+}
+
 function loadProgress(
   puzzleId: string,
   cellCount: number,
-): { filled: string[]; startAtMs: number; locked: number[]; pausedAt: number | null } | null {
+): {
+  filled: string[];
+  startAtMs: number;
+  locked: number[];
+  pausedAt: number | null;
+  lastAliveAt: number | null;
+} | null {
   try {
     const raw = localStorage.getItem(progressKey(puzzleId));
     if (!raw) return null;
@@ -237,6 +266,7 @@ function loadProgress(
       startAtMs?: unknown;
       locked?: unknown;
       pausedAt?: unknown;
+      lastAliveAt?: unknown;
     };
     if (!Array.isArray(parsed.filled) || parsed.filled.length !== cellCount) return null;
     if (!parsed.filled.every((c) => typeof c === 'string')) return null;
@@ -254,21 +284,30 @@ function loadProgress(
       );
       if (valid) locked = parsed.locked as number[];
     }
-    const pausedAt =
-      typeof parsed.pausedAt === 'number' &&
-      Number.isFinite(parsed.pausedAt) &&
-      parsed.pausedAt >= parsed.startAtMs
-        ? parsed.pausedAt
-        : null;
-    return { filled: parsed.filled as string[], startAtMs: parsed.startAtMs, locked, pausedAt };
+    const pausedAt = parseTimestamp(parsed.pausedAt, parsed.startAtMs);
+    const lastAliveAt = parseTimestamp(parsed.lastAliveAt, parsed.startAtMs);
+    return {
+      filled: parsed.filled as string[],
+      startAtMs: parsed.startAtMs,
+      locked,
+      pausedAt,
+      lastAliveAt,
+    };
   } catch {
     return null;
   }
 }
 
-function startAtMsAfterPause(startAtMs: number, pausedAt: number | null | undefined) {
-  if (pausedAt == null) return startAtMs;
-  return startAtMs + Math.max(0, Date.now() - pausedAt);
+function adjustStartAtMs(
+  startAtMs: number,
+  pausedAt: number | null | undefined,
+  lastAliveAt: number | null | undefined,
+) {
+  if (pausedAt != null) return startAtMs + Math.max(0, Date.now() - pausedAt);
+  if (lastAliveAt != null && Date.now() - lastAliveAt > AWAY_GAP_MS) {
+    return startAtMs + (Date.now() - lastAliveAt);
+  }
+  return startAtMs;
 }
 
 function saveProgress(
@@ -277,6 +316,7 @@ function saveProgress(
   startAtMs: number,
   locked: Iterable<number>,
   pausedAt: number | null,
+  lastAliveAt: number | null,
 ) {
   localStorage.setItem(
     progressKey(puzzleId),
@@ -285,6 +325,7 @@ function saveProgress(
       startAtMs,
       locked: Array.from(locked),
       ...(pausedAt != null ? { pausedAt } : {}),
+      ...(lastAliveAt != null ? { lastAliveAt } : {}),
     }),
   );
 }
@@ -367,12 +408,14 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
 
   const [startAtMs, setStartAtMs] = useState(() => {
     const saved = loadProgress(puzzle.id, cellCount);
-    return startAtMsAfterPause(saved?.startAtMs ?? Date.now(), saved?.pausedAt);
+    return adjustStartAtMs(saved?.startAtMs ?? Date.now(), saved?.pausedAt, saved?.lastAliveAt);
   });
   const [elapsedMs, setElapsedMs] = useState<number | null>(null);
   const [solved, setSolved] = useState(false);
   const [pausedAt, setPausedAt] = useState<number | null>(null);
   const pausedAtRef = useRef<number | null>(null);
+  const lastAliveRef = useRef(Date.now());
+  const lastPageHideAtRef = useRef(0);
   const solvedRef = useRef(false);
   const puzzleIdRef = useRef(puzzle.id);
   const filledRef = useRef(filled);
@@ -440,9 +483,14 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
       setActiveEntryNumber(null);
       setActiveCellIndex(null);
     }
-    const nextStart = startAtMsAfterPause(saved?.startAtMs ?? Date.now(), saved?.pausedAt);
+    const nextStart = adjustStartAtMs(
+      saved?.startAtMs ?? Date.now(),
+      saved?.pausedAt,
+      saved?.lastAliveAt,
+    );
     setStartAtMs(nextStart);
     startAtMsRef.current = nextStart;
+    lastAliveRef.current = Date.now();
     setLockedCells(new Set(saved?.locked ?? []));
     setWrongCells(new Set());
     setSolved(false);
@@ -491,46 +539,68 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
 
   useEffect(() => {
     if (solved) return;
-    saveProgress(puzzle.id, filled, startAtMs, lockedCells, pausedAtRef.current);
+    saveProgress(
+      puzzle.id,
+      filled,
+      startAtMs,
+      lockedCells,
+      pausedAtRef.current,
+      lastAliveRef.current,
+    );
   }, [filled, startAtMs, lockedCells, puzzle.id, solved, pausedAt]);
+
+  const persistProgress = (pausedAt: number | null) => {
+    if (solvedRef.current) return;
+    lastAliveRef.current = pausedAt ?? Date.now();
+    saveProgress(
+      puzzleIdRef.current,
+      filledRef.current,
+      startAtMsRef.current,
+      lockedCellsRef.current,
+      pausedAt,
+      lastAliveRef.current,
+    );
+  };
+
+  const skipGap = (gapMs: number) => {
+    if (solvedRef.current || gapMs <= 0) return;
+    const next = startAtMsRef.current + gapMs;
+    startAtMsRef.current = next;
+    setStartAtMs(next);
+  };
+
+  const onAway = useStableCallback((gapMs: number) => {
+    skipGap(gapMs);
+    persistProgress(pausedAtRef.current);
+  });
 
   // Pause while the tab/app is not displayed (desktop hidden tab or mobile
   // background). Window blur is ignored on purpose: a still-visible window
-  // on another monitor should keep running. pagehide/pageshow cover iOS
-  // Safari, where visibilitychange is not always enough.
+  // on another monitor should keep running.
+  //
+  // iOS swipe-to-home often never sets document.hidden. It may fire pagehide
+  // then an immediate pageshow for the app-switcher snapshot, then freeze
+  // JS. Ignore that fake resume; a 1s heartbeat unpauses once the page is
+  // actually visible again, and SolverTimer skips any frozen gap.
   useEffect(() => {
-    const persistPaused = (at: number | null) => {
-      if (solvedRef.current) return;
-      saveProgress(
-        puzzleIdRef.current,
-        filledRef.current,
-        startAtMsRef.current,
-        lockedCellsRef.current,
-        at,
-      );
-    };
-
     const pause = () => {
       if (solvedRef.current || pausedAtRef.current != null) return;
       const now = Date.now();
+      lastPageHideAtRef.current = now;
       pausedAtRef.current = now;
       setPausedAt(now);
-      persistPaused(now);
+      persistProgress(now);
     };
 
     const resume = () => {
       if (document.hidden) return;
+      if (Date.now() - lastPageHideAtRef.current < 500) return;
       const paused = pausedAtRef.current;
       if (paused == null) return;
       pausedAtRef.current = null;
       setPausedAt(null);
-      // Shift startAtMs by the away duration so wall-clock time in the
-      // background is skipped. Use a plain value, not a setState updater —
-      // StrictMode double-invokes updaters and would count the gap twice.
-      const next = startAtMsRef.current + Math.max(0, Date.now() - paused);
-      startAtMsRef.current = next;
-      setStartAtMs(next);
-      persistPaused(null);
+      skipGap(Date.now() - paused);
+      persistProgress(null);
     };
 
     const onVisibility = () => {
@@ -538,15 +608,28 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
       else resume();
     };
 
+    const beat = () => {
+      if (solvedRef.current || document.hidden) return;
+      if (pausedAtRef.current != null) {
+        resume();
+        return;
+      }
+      persistProgress(null);
+    };
+
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('pagehide', pause);
     window.addEventListener('pageshow', resume);
+    window.addEventListener('focus', resume);
+    const beatId = window.setInterval(beat, 1000);
     if (document.hidden) pause();
 
     return () => {
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('pagehide', pause);
       window.removeEventListener('pageshow', resume);
+      window.removeEventListener('focus', resume);
+      window.clearInterval(beatId);
     };
   }, []);
 
@@ -935,7 +1018,12 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     }
     setFilled(snapped);
 
-    const elapsed = (pausedAtRef.current ?? Date.now()) - startAtMs;
+    const now = pausedAtRef.current ?? Date.now();
+    const stale =
+      pausedAtRef.current == null && now - lastAliveRef.current > AWAY_GAP_MS
+        ? now - lastAliveRef.current
+        : 0;
+    const elapsed = now - startAtMs - stale;
     solvedRef.current = true;
     setSolved(true);
     setElapsedMs(elapsed);
@@ -1226,6 +1314,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
               solved={solved}
               elapsedMs={elapsedMs}
               pausedAt={pausedAt}
+              onAway={onAway}
             />
             {!solved ? (
               isMobile ? (
