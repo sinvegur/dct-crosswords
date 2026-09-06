@@ -168,6 +168,7 @@ type GridCellProps = {
   isCurrentCell: boolean;
   isLocked: boolean;
   isWrong: boolean;
+  isCircled: boolean;
   isLinked: boolean;
   isMobile: boolean;
   fontSizePx: number | null;
@@ -189,6 +190,7 @@ const GridCell = memo(function GridCell({
   isLocked,
   isWrong,
   isLinked,
+  isCircled,
   isMobile,
   fontSizePx,
   inputsRef,
@@ -202,7 +204,9 @@ const GridCell = memo(function GridCell({
     <div
       className={`cell ${isLinked ? 'cellLinked' : ''} ${isActiveCell ? 'cellActive' : ''} ${
         isCurrentCell ? 'cellCurrent' : ''
-      } ${isLocked ? 'cellLocked' : ''} ${isWrong ? 'cellWrong' : ''}`}
+      } ${isLocked ? 'cellLocked' : ''} ${isWrong ? 'cellWrong' : ''} ${
+        isCircled ? 'cellCircled' : ''
+      }`}
       onMouseDown={() => onMouseDownCell(cellIndex)}
       onClick={() => onPickCell(cellIndex, { fromClick: true })}
     >
@@ -340,6 +344,10 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
   const size = puzzle.size;
   const cellCount = size * size;
   const computed = useMemo(() => computeEntries(puzzle.solutionGrid), [puzzle.id]);
+  const circledCells = useMemo(
+    () => new Set(puzzle.clues.circles ?? []),
+    [puzzle.id, puzzle.clues.circles],
+  );
   const solutionChars = useMemo(() => puzzle.solutionGrid.flatMap((r) => r.split('')), [puzzle.solutionGrid]);
 
   const blockSet = useMemo(() => {
@@ -1500,6 +1508,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
                       isLocked={!solved && lockedCells.has(cellIndex)}
                       isWrong={!solved && wrongCells.has(cellIndex)}
                       isLinked={!solved && linkedCellIndices.has(cellIndex)}
+                      isCircled={circledCells.has(cellIndex)}
                       isMobile={isMobile}
                       fontSizePx={fontSizePx}
                       inputsRef={inputsRef}

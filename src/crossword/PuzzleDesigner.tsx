@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { Link2, Redo2, Undo2, Unlink2 } from 'lucide-react';
+import { Circle, Link2, Redo2, Undo2, Unlink2 } from 'lucide-react';
 import { UnlinkCluesConfirmModal } from '@/components/UnlinkCluesConfirmModal';
 import { UnsavedChangesModal } from '@/components/UnsavedChangesModal';
 import { mirrorPos, templateToEmptySolution, type Template } from '@/data/templates';
@@ -8,6 +8,7 @@ import { SIZE_15, computeEntries, type Direction, type Entry } from './engine';
 import {
   clueLinkKey,
   findClueLinkGroup,
+  sanitizeCircles,
   sanitizeClueLinks,
   type ClueLinkMember,
   type Puzzle,
@@ -53,6 +54,7 @@ type DesignerSnapshot = {
   cluesAcross: Record<number, string>;
   cluesDown: Record<number, string>;
   links: ClueLinkMember[][];
+  circles: number[];
 };
 
 function initialRows(initial?: Puzzle, startingTemplate?: Template): string[] {
@@ -67,6 +69,7 @@ function snapshotFromState(
   cluesAcross: Record<number, string>,
   cluesDown: Record<number, string>,
   links: ClueLinkMember[][],
+  circles: Set<number>,
 ): DesignerSnapshot {
   return {
     title,
@@ -74,6 +77,7 @@ function snapshotFromState(
     cluesAcross: { ...cluesAcross },
     cluesDown: { ...cluesDown },
     links: links.map((group) => group.map((member) => ({ ...member }))),
+    circles: [...circles].sort((a, b) => a - b),
   };
 }
 
@@ -86,6 +90,7 @@ function snapshotsEqual(a: DesignerSnapshot, b: DesignerSnapshot): boolean {
   if (JSON.stringify(a.cluesAcross) !== JSON.stringify(b.cluesAcross)) return false;
   if (JSON.stringify(a.cluesDown) !== JSON.stringify(b.cluesDown)) return false;
   if (JSON.stringify(a.links) !== JSON.stringify(b.links)) return false;
+  if (JSON.stringify(a.circles) !== JSON.stringify(b.circles)) return false;
   return true;
 }
 
@@ -105,6 +110,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
       initial?.clues.across ?? {},
       initial?.clues.down ?? {},
       initial?.clues.links ?? [],
+      new Set(initial?.clues.circles ?? []),
     ),
   );
 
@@ -129,6 +135,14 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
     () => initial?.clues.down ?? {},
   );
   const [links, setLinks] = useState<ClueLinkMember[][]>(() => initial?.clues.links ?? []);
+  const [circles, setCircles] = useState<Set<number>>(
+    () => new Set(initial?.clues.circles ?? []),
+  );
+  // Clicking a cell normally moves the cursor. In circle mode it toggles the
+  // circle instead - typing is untouched either way, so the mode cannot leave
+  // the builder feeling broken.
+  const [circleMode, setCircleMode] = useState(false);
+
   const [linkingMode, setLinkingMode] = useState(false);
   const [linkSelection, setLinkSelection] = useState<ClueLinkMember[]>([]);
 
@@ -141,7 +155,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
 
   const pushHistory = () => {
     setHistory((h) => ({
-      past: [...h.past, snapshotFromState(title, rows, cluesAcross, cluesDown, links)].slice(-100),
+      past: [...h.past, snapshotFromState(title, rows, cluesAcross, cluesDown, links, circles)].slice(-100),
       future: [],
     }));
   };
@@ -152,6 +166,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
     setCluesAcross(s.cluesAcross);
     setCluesDown(s.cluesDown);
     setLinks(s.links);
+    setCircles(new Set(s.circles));
   };
 
   // Note: applySnapshot must be called OUTSIDE the setHistory updater.
@@ -159,7 +174,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
   // catch exactly this - a setState side effect nested inside another one.
   const undo = () => {
     if (history.past.length === 0) return;
-    const current = snapshotFromState(title, rows, cluesAcross, cluesDown, links);
+    const current = snapshotFromState(title, rows, cluesAcross, cluesDown, links, circles);
     const previous = history.past[history.past.length - 1]!;
     applySnapshot(previous);
     setHistory((h) => ({
@@ -170,7 +185,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
 
   const redo = () => {
     if (history.future.length === 0) return;
-    const current = snapshotFromState(title, rows, cluesAcross, cluesDown, links);
+    const current = snapshotFromState(title, rows, cluesAcross, cluesDown, links, circles);
     const next = history.future[0]!;
     applySnapshot(next);
     setHistory((h) => ({
@@ -239,6 +254,8 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
 
   const onLinkButton = () => {
     if (!linkingMode) {
+      // Both modes want the click; only one may have it.
+      setCircleMode(false);
       setLinkingMode(true);
       setLinkSelection([]);
       return;
@@ -285,6 +302,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
       const makeBlock = next[row][col] !== '#';
       const apply = (r: number, c: number) => {
         next[r][c] = makeBlock ? '#' : ' ';
+        if (makeBlock) dropCircleAt(idxOf(size, r, c));
       };
       apply(row, col);
       if (symmetry) {
@@ -549,7 +567,33 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
     }
   };
 
+  // Turning a cell into a block drops any circle on it, so a hidden circle
+  // cannot come back if the block is later removed.
+  const dropCircleAt = (cellIndex: number) => {
+    setCircles((prev) => {
+      if (!prev.has(cellIndex)) return prev;
+      const next = new Set(prev);
+      next.delete(cellIndex);
+      return next;
+    });
+  };
+
+  const toggleCircleAt = (cellIndex: number) => {
+    if (flat[cellIndex] === '#') return;
+    pushHistory();
+    setCircles((prev) => {
+      const next = new Set(prev);
+      if (next.has(cellIndex)) next.delete(cellIndex);
+      else next.add(cellIndex);
+      return next;
+    });
+  };
+
   const onCellClick = (cellIndex: number) => {
+    if (circleMode) {
+      toggleCircleAt(cellIndex);
+      return;
+    }
     const { row, col } = posOf(size, cellIndex);
     if (solutionGrid[row][col] === '#') {
       toggleBlockAt(row, col);
@@ -588,7 +632,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
   const isDirty = useMemo(
     () =>
       !snapshotsEqual(
-        snapshotFromState(title, rows, cluesAcross, cluesDown, links),
+        snapshotFromState(title, rows, cluesAcross, cluesDown, links, circles),
         baselineRef.current,
       ),
     [title, rows, cluesAcross, cluesDown, links],
@@ -598,7 +642,7 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
   isDirtyRef.current = isDirty;
 
   const updateBaseline = useCallback(() => {
-    baselineRef.current = snapshotFromState(title, rows, cluesAcross, cluesDown, links);
+    baselineRef.current = snapshotFromState(title, rows, cluesAcross, cluesDown, links, circles);
   }, [title, rows, cluesAcross, cluesDown, links]);
 
   // Re-select the focused cell's letter after every edit. The inputs are
@@ -680,6 +724,9 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
         across: cluesAcross,
         down: cluesDown,
         ...(validLinks.length > 0 ? { links: validLinks } : {}),
+        ...(sanitizeCircles([...circles], cleanGrid).length > 0
+          ? { circles: sanitizeCircles([...circles], cleanGrid) }
+          : {}),
       },
       meta: {
         createdBy: initial?.meta?.createdBy ?? 'local',
@@ -929,6 +976,20 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
             </span>
           </button>
 
+          <button
+            type="button"
+            className={`toolbarControl ${circleMode ? 'isActive' : ''}`}
+            aria-label="Circle letters"
+            title="Circle letters — click cells to add or remove circles (or press , on a cell)"
+            aria-pressed={circleMode}
+            onClick={() => {
+              setCircleMode((v) => !v);
+              if (linkingMode) setLinkingMode(false);
+            }}
+          >
+            <Circle size={TOOLBAR_ICON_SIZE} aria-hidden />
+          </button>
+
           <div className="toolbarSegment" role="group" aria-label="Clue links">
             <button
               type="button"
@@ -979,7 +1040,9 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
                   key={cellIndex}
                   className={`cell ${isBlock ? 'block' : ''} ${isLinked ? 'cellLinked' : ''} ${
                     isActive ? 'cellActive' : ''
-                  } ${isCurrent ? 'cellCurrent' : ''} ${isBlock ? 'cellClickable' : ''}`}
+                  } ${isCurrent ? 'cellCurrent' : ''} ${isBlock ? 'cellClickable' : ''} ${
+                    !isBlock && circles.has(cellIndex) ? 'cellCircled' : ''
+                  }`}
                   onClick={() => onCellClick(cellIndex)}
                 >
                   {!isBlock && numAtCell != null ? (
@@ -1000,6 +1063,13 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
                       }}
                       onChange={(e) => onCellChange(cellIndex, e.target.value)}
                       onKeyDown={(e) => {
+                        if (e.key === ',') {
+                          // "." already toggles a block, so its neighbour
+                          // toggles a circle. Letters are all spoken for.
+                          e.preventDefault();
+                          toggleCircleAt(cellIndex);
+                          return;
+                        }
                         if (e.key === '.') {
                           e.preventDefault();
                           const { row, col } = posOf(size, cellIndex);

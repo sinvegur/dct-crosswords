@@ -1299,3 +1299,31 @@ textarea {
   }
 }
 
+
+/* Circled letters, NYT style: the constructor marks squares that spell
+   something across the grid.
+
+   ::before, not ::after - .cellWrong already owns ::after for its strike, and
+   a circled square can also be wrong. The circle is drawn inside the border
+   so it never changes layout, and it sits under the letter and the number
+   rather than over them.
+
+   Stroke and inset are in cqw (the cell is a container) so the circle scales
+   with the square: readable on a 15x15 phone grid, not heavy on desktop. */
+.cellCircled::before {
+  content: '';
+  position: absolute;
+  inset: 6cqw;
+  border: max(1px, 1.6cqw) solid var(--cell-circle, rgba(30, 41, 59, 0.55));
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* On a filled or highlighted square the circle needs to stay legible against
+   the amber selection colours, so it darkens rather than fading out. */
+.cellActive.cellCircled::before,
+.cellCurrent.cellCircled::before {
+  border-color: rgba(30, 41, 59, 0.75);
+}
+
