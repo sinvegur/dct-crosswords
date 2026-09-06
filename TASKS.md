@@ -21,3 +21,28 @@ After the diagnostic notes originally left here, the investigation continued dir
 - That pointed at the real likely cause: iOS Safari applies native default styling/padding to text inputs unless a page explicitly opts out (`-webkit-appearance: none`), which was missing from `.cell input` entirely. Fixed, plus removed the grid's remaining CSS container-query dependency (container-type/cqw/cqi) in favor of directly JS-measuring cell size via `ResizeObserver` and applying plain pixel values — since the bug never reproduced in any automated testing, container queries behaving unexpectedly on the specific real device was a live suspect worth eliminating regardless.
 
 **Status: fix shipped, not yet confirmed on the user's actual device** ("will check later"). If it comes back after confirmation, or a new report references this, read the full commit history on `src/styles.css` and `src/crossword/CrosswordPlayer.tsx` from today (2026-08-25) before re-diagnosing — a lot of ground was already covered.
+
+---
+
+## T059 — [TODO] Builder grid is not square, so every cell overflows its row
+
+Found while adding circled letters, and worth fixing on its own.
+
+In the builder the grid box comes out non-square at some window sizes. The cells keep `aspect-ratio: 1 / 1`, so each one stays square while its grid *row* is shorter — every cell overflows its row by a few pixels and the row below paints over its bottom edge.
+
+It is invisible with letters alone, because they are centred and small. Anything that reaches the edge of a square shows it: the circled-letter ring had its bottom arc clipped, which is what surfaced this. The circle's inset was widened from 7% to 12% to buy clearance — that is a workaround sitting on top of this bug, and it can be reverted once the grid is square.
+
+Reproduce: open the builder, then in the console
+
+```js
+const g = document.querySelector('.designerGridPanel .grid'), c = g.querySelector('.cell');
+console.log({ grid: [g.getBoundingClientRect().width, g.getBoundingClientRect().height],
+              cell: [c.getBoundingClientRect().width, c.getBoundingClientRect().height],
+              rowHeight: g.getBoundingClientRect().height / 15 });
+```
+
+A non-square `grid`, or a `cell` height larger than `rowHeight`, is the bug.
+
+The sizing lives in `.designerGridPanel .grid` (`width`/`height: calc(100cqmin - 24px)` with `max-width`/`max-height: 100%`) plus the base `.grid` rule's own `aspect-ratio: 1 / 1`. The clamps and the explicit height can disagree; the solver's equivalent rule is worth comparing against, since the solver does not show the problem.
+
+Check at several window sizes and both grid sizes (15x15 and 5x5), and confirm the circle still sits inside its square afterwards.

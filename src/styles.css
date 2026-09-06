@@ -1318,7 +1318,12 @@ textarea {
      drew it oversized in the builder. box-sizing matters too: pseudo-elements
      default to content-box, so without this the border is added outside the
      inset rectangle and the circle spills past the square. */
-  inset: 7%;
+  /* 12%, not the 7% the circle actually needs: in the builder the grid box is
+     not square, so cells keep aspect-ratio 1/1 while their rows are shorter -
+     every cell overflows its row by a few pixels and the row below paints over
+     its bottom edge, clipping the circle. The inset buys clearance instead of
+     fixing that; the grid sizing is the real bug and is worth its own task. */
+  inset: 12%;
   box-sizing: border-box;
   border: 1.5px solid var(--cell-circle, rgba(30, 41, 59, 0.55));
   border-radius: 50%;
