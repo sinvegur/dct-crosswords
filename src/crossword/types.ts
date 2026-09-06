@@ -18,6 +18,16 @@ export type Puzzle = {
     down: Record<number, string>;
     /** Groups of 2+ entries that belong together. Optional - older puzzles have none. */
     links?: Array<Array<{ direction: Direction; number: number }>>;
+    /**
+     * Cell indices (row * size + col) drawn with a circle, NYT style, so a
+     * constructor can mark letters that spell something across the grid.
+     *
+     * It lives under `clues` because that column is jsonb and already carries
+     * `links`, which are not clues either - putting it here means no schema
+     * migration and no window where deployed code selects a column that does
+     * not exist yet.
+     */
+    circles?: number[];
   };
   meta?: {
     createdBy?: string;
@@ -65,4 +75,22 @@ export function findClueLinkGroup(
   return links.find((group) =>
     group.some((member) => member.direction === direction && member.number === number),
   );
+}
+
+/** Drop circles that fall outside the grid or land on a block. */
+export function sanitizeCircles(
+  circles: number[] | undefined,
+  solutionGrid: string[],
+): number[] {
+  if (!circles?.length) return [];
+  const size = solutionGrid.length;
+  const seen = new Set<number>();
+  for (const index of circles) {
+    if (!Number.isInteger(index) || index < 0 || index >= size * size) continue;
+    const row = Math.floor(index / size);
+    const col = index % size;
+    if (solutionGrid[row]?.[col] === '#') continue;
+    seen.add(index);
+  }
+  return [...seen].sort((a, b) => a - b);
 }

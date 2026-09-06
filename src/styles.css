@@ -1299,3 +1299,42 @@ textarea {
   }
 }
 
+
+/* Circled letters, NYT style: the constructor marks squares that spell
+   something across the grid.
+
+   ::before, not ::after - .cellWrong already owns ::after for its strike, and
+   a circled square can also be wrong. The circle is drawn inside the border
+   so it never changes layout, and it sits under the letter and the number
+   rather than over them.
+
+   Stroke and inset are in cqw (the cell is a container) so the circle scales
+   with the square: readable on a 15x15 phone grid, not heavy on desktop. */
+.cellCircled::before {
+  content: '';
+  position: absolute;
+  /* Percentages resolve against this cell's own box, so the circle cannot be
+     thrown off by whatever container context the grid sits in - cqw units
+     drew it oversized in the builder. box-sizing matters too: pseudo-elements
+     default to content-box, so without this the border is added outside the
+     inset rectangle and the circle spills past the square. */
+  /* 12%, not the 7% the circle actually needs: in the builder the grid box is
+     not square, so cells keep aspect-ratio 1/1 while their rows are shorter -
+     every cell overflows its row by a few pixels and the row below paints over
+     its bottom edge, clipping the circle. The inset buys clearance instead of
+     fixing that; the grid sizing is the real bug and is worth its own task. */
+  inset: 12%;
+  box-sizing: border-box;
+  border: 1.5px solid var(--cell-circle, rgba(30, 41, 59, 0.55));
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* On a filled or highlighted square the circle needs to stay legible against
+   the amber selection colours, so it darkens rather than fading out. */
+.cellActive.cellCircled::before,
+.cellCurrent.cellCircled::before {
+  border-color: rgba(30, 41, 59, 0.75);
+}
+
