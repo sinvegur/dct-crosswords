@@ -1313,8 +1313,14 @@ textarea {
 .cellCircled::before {
   content: '';
   position: absolute;
-  inset: 6cqw;
-  border: max(1px, 1.6cqw) solid var(--cell-circle, rgba(30, 41, 59, 0.55));
+  /* Percentages resolve against this cell's own box, so the circle cannot be
+     thrown off by whatever container context the grid sits in - cqw units
+     drew it oversized in the builder. box-sizing matters too: pseudo-elements
+     default to content-box, so without this the border is added outside the
+     inset rectangle and the circle spills past the square. */
+  inset: 7%;
+  box-sizing: border-box;
+  border: 1.5px solid var(--cell-circle, rgba(30, 41, 59, 0.55));
   border-radius: 50%;
   pointer-events: none;
   z-index: 0;

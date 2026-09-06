@@ -1125,7 +1125,12 @@ export function PuzzleDesigner({ initial, startingTemplate, onSaved, onCancel }:
           </div>
 
           <div className="statusBar">
-            {linkingMode ? (
+            {circleMode ? (
+              <span className="hint">
+                Click cells to circle or uncircle a letter — or press , on a cell. Press the circle
+                button again when done.
+              </span>
+            ) : linkingMode ? (
               <span className="hint">
                 Select 2 or more clues to link, then press Link again to confirm.
               </span>
