@@ -12,6 +12,70 @@ Task queue for handing work from Claude (planning/review) to Cursor (implementat
 
 ---
 
+## T060 — [TODO] Coming back to a solved puzzle shows an empty grid
+
+Two pieces of solver feedback are the same bug: "I go away and come back and the grid is empty", and "I don't see the completed grid when I get back".
+
+Finishing a puzzle **deletes** the saved progress. `CrosswordPlayer.tsx` does
+`localStorage.removeItem(progressKey(puzzle.id))` the moment the last letter lands, and the
+`solved` flag only ever lives in React state. So reopening a puzzle you already finished gives
+you a blank grid and a timer counting from 0:00, with nothing to show you ever played — even
+though your best time is still sitting in `localStorage` right next to it.
+
+Mid-solve progress is fine and already survives a reload; this is only about the finished state.
+
+### What it should do
+
+Reopening a solved puzzle lands on the results screen it showed at the finish: leaderboard by
+default, the completed grid behind the toggle, their own time and rank, their row highlighted.
+Timer stopped.
+
+### 1. Persist the finish instead of erasing it
+
+Keep the same `dct-crosswords:progress:<puzzleId>` key. On solve, write the completed grid plus
+`solved: true`, `elapsedMs`, and `attemptId` rather than removing the entry. `loadProgress` reads
+the three new fields back, and treats `solved` as true only when `elapsedMs` is also a valid
+number — a half-written record must fall back to "not solved" rather than restoring a results
+screen with no time on it.
+
+### 2. Restore it on mount — including the ref
+
+The per-puzzle init effect currently ends with an unconditional reset (`setSolved(false)`,
+`setElapsedMs(null)`, `setAttemptId(null)`). It runs on mount, so restoring state in the
+`useState` initializers alone is not enough — this effect would wipe it a moment later. Both
+paths need to read the saved record.
+
+### 3. Do not submit the attempt again — this is the one that can do damage
+
+The results effect guards on `submittedRef`, which is a **ref**: it resets to `false` on every
+mount. Restore `solved` and `elapsedMs` without accounting for it and every single revisit
+inserts another row into `attempts` — the leaderboard fills with duplicates of the same person,
+and there is no delete policy on that table, so cleaning it up means hand-written SQL.
+
+A restored solve already has its row. Submit only when there is no stored `attemptId`; otherwise
+skip straight to fetching. Fetch the leaderboard and rank fresh on every return rather than
+storing them, so standings are current.
+
+### 4. A solve whose submit failed should get another chance
+
+`solved: true` with no `attemptId` means they finished while offline and their time never
+reached the server. That record *should* submit on the next visit. This falls out of §3 for free
+— it is worth a test of its own, not extra code.
+
+### Verify
+
+`npm run build`, then locally:
+- Solve a puzzle. Leave, come back: completed grid, own time, rank, row highlighted, timer stopped.
+- Come back twice more, then check the leaderboard: **one** row for that solver, not three.
+- A puzzle you have not solved behaves exactly as it does today — blank grid, timer from 0:00.
+- Mid-solve progress still survives a reload, untouched.
+- Clear that puzzle's `localStorage` key: back to a fresh unsolved grid.
+
+Note that local dev talks to the live Supabase, so a test solve writes a real leaderboard row.
+Use an obvious throwaway name, and expect to delete it by hand afterwards.
+
+---
+
 ## T046 — [BLOCKED, pending user confirmation] Mobile letter-clipping bug — likely fixed, awaiting real-device check
 
 **Not a Cursor task right now — do not pick this up.** Claude handled this directly (real-device-only bug, needed live iteration). Leaving a short record here rather than deleting, in case it resurfaces.
