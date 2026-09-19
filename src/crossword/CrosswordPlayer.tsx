@@ -261,6 +261,9 @@ function loadProgress(
   locked: number[];
   pausedAt: number | null;
   lastAliveAt: number | null;
+  solved: boolean;
+  elapsedMs: number | null;
+  attemptId: string | null;
 } | null {
   try {
     const raw = localStorage.getItem(progressKey(puzzleId));
@@ -271,6 +274,9 @@ function loadProgress(
       locked?: unknown;
       pausedAt?: unknown;
       lastAliveAt?: unknown;
+      solved?: unknown;
+      elapsedMs?: unknown;
+      attemptId?: unknown;
     };
     if (!Array.isArray(parsed.filled) || parsed.filled.length !== cellCount) return null;
     if (!parsed.filled.every((c) => typeof c === 'string')) return null;
@@ -290,12 +296,26 @@ function loadProgress(
     }
     const pausedAt = parseTimestamp(parsed.pausedAt, parsed.startAtMs);
     const lastAliveAt = parseTimestamp(parsed.lastAliveAt, parsed.startAtMs);
+    // A finished record is only trustworthy with a time attached - restoring a
+    // results screen that has no time to show would be worse than starting over.
+    const elapsedMs =
+      typeof parsed.elapsedMs === 'number' &&
+      Number.isFinite(parsed.elapsedMs) &&
+      parsed.elapsedMs >= 0
+        ? parsed.elapsedMs
+        : null;
+    const solved = parsed.solved === true && elapsedMs != null;
+    const attemptId =
+      solved && typeof parsed.attemptId === 'string' && parsed.attemptId ? parsed.attemptId : null;
     return {
       filled: parsed.filled as string[],
       startAtMs: parsed.startAtMs,
       locked,
       pausedAt,
       lastAliveAt,
+      solved,
+      elapsedMs: solved ? elapsedMs : null,
+      attemptId,
     };
   } catch {
     return null;
@@ -334,6 +354,42 @@ function saveProgress(
   );
 }
 
+// Finishing used to delete the record, which left a returning solver with a
+// blank grid and no sign they had ever played. Same key, same shape, plus what
+// the results screen needs to come back: the time, and the leaderboard row id.
+function saveSolved(
+  puzzleId: string,
+  filled: string[],
+  startAtMs: number,
+  locked: Iterable<number>,
+  elapsedMs: number,
+) {
+  localStorage.setItem(
+    progressKey(puzzleId),
+    JSON.stringify({
+      filled,
+      startAtMs,
+      locked: Array.from(locked),
+      solved: true,
+      elapsedMs,
+    }),
+  );
+}
+
+// The attempt id only exists once the insert comes back, after saveSolved has
+// already written the record. Merge it in rather than rewriting from state.
+function storeAttemptId(puzzleId: string, attemptId: string) {
+  try {
+    const raw = localStorage.getItem(progressKey(puzzleId));
+    if (!raw) return;
+    const parsed = JSON.parse(raw) as { solved?: unknown };
+    if (parsed?.solved !== true) return;
+    localStorage.setItem(progressKey(puzzleId), JSON.stringify({ ...parsed, attemptId }));
+  } catch {
+    /* A record we cannot parse is one the next load discards anyway. */
+  }
+}
+
 type Props = {
   puzzle: Puzzle;
   solverName: string;
@@ -364,7 +420,9 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     return snapFilledToBuilderSpelling(raw, solutionChars);
   });
 
-  const submittedRef = useRef(false);
+  // Guards the results pipeline, not the insert specifically: a restored solve
+  // runs it to refresh the leaderboard while deliberately skipping the insert.
+  const resultsStartedRef = useRef(false);
 
   const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
   const clueRowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -418,8 +476,10 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     const saved = loadProgress(puzzle.id, cellCount);
     return adjustStartAtMs(saved?.startAtMs ?? Date.now(), saved?.pausedAt, saved?.lastAliveAt);
   });
-  const [elapsedMs, setElapsedMs] = useState<number | null>(null);
-  const [solved, setSolved] = useState(false);
+  const [elapsedMs, setElapsedMs] = useState<number | null>(
+    () => loadProgress(puzzle.id, cellCount)?.elapsedMs ?? null,
+  );
+  const [solved, setSolved] = useState(() => loadProgress(puzzle.id, cellCount)?.solved ?? false);
   const [pausedAt, setPausedAt] = useState<number | null>(null);
   const pausedAtRef = useRef<number | null>(null);
   const lastAliveRef = useRef(Date.now());
@@ -464,7 +524,10 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
 
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [userRank, setUserRank] = useState<number | null>(null);
-  const [attemptId, setAttemptId] = useState<string | null>(null);
+  const [attemptId, setAttemptId] = useState<string | null>(
+    () => loadProgress(puzzle.id, cellCount)?.attemptId ?? null,
+  );
+  const attemptIdRef = useRef<string | null>(attemptId);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [resultsLoading, setResultsLoading] = useState(false);
 
@@ -501,8 +564,9 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     lastAliveRef.current = Date.now();
     setLockedCells(new Set(saved?.locked ?? []));
     setWrongCells(new Set());
-    setSolved(false);
-    solvedRef.current = false;
+    const restoredSolved = saved?.solved ?? false;
+    setSolved(restoredSolved);
+    solvedRef.current = restoredSolved;
     if (document.hidden) {
       const now = Date.now();
       pausedAtRef.current = now;
@@ -512,12 +576,14 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
       setPausedAt(null);
     }
     setResultsView('leaderboard');
-    setElapsedMs(null);
+    setElapsedMs(restoredSolved ? saved!.elapsedMs : null);
     setLeaderboard([]);
     setUserRank(null);
-    setAttemptId(null);
+    const restoredAttemptId = restoredSolved ? (saved!.attemptId ?? null) : null;
+    setAttemptId(restoredAttemptId);
+    attemptIdRef.current = restoredAttemptId;
     setSubmitError(null);
-    submittedRef.current = false;
+    resultsStartedRef.current = false;
   }, [puzzle.id, cellCount, computed, size, solutionChars]);
 
   // Re-select the focused cell's letter after every edit. The inputs are
@@ -544,6 +610,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
   startAtMsRef.current = startAtMs;
   lockedCellsRef.current = lockedCells;
   solvedRef.current = solved;
+  attemptIdRef.current = attemptId;
 
   useEffect(() => {
     if (solved) return;
@@ -657,8 +724,8 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
   }, [activeDirection, activeEntryNumber]);
 
   useEffect(() => {
-    if (!solved || elapsedMs == null || submittedRef.current) return;
-    submittedRef.current = true;
+    if (!solved || elapsedMs == null || resultsStartedRef.current) return;
+    resultsStartedRef.current = true;
 
     let cancelled = false;
     setResultsLoading(true);
@@ -666,22 +733,32 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
 
     void (async () => {
       try {
-        const id = await submitAttempt({
-          puzzleId: puzzle.id,
-          solverName,
-          elapsedMs,
-        });
+        // A restored solve is already on the leaderboard. This ref resets on
+        // every mount, so without the stored id each revisit would insert
+        // another row for the same solve. A solve with no id never reached the
+        // server (offline at the finish) and does still get submitted here.
+        let id = attemptIdRef.current;
+        if (id == null) {
+          id = await submitAttempt({
+            puzzleId: puzzle.id,
+            solverName,
+            elapsedMs,
+          });
+          if (!cancelled) {
+            setAttemptId(id);
+            storeAttemptId(puzzle.id, id);
+          }
+        }
         const [board, rank] = await Promise.all([
           getLeaderboard(puzzle.id),
           getAttemptRank(puzzle.id, elapsedMs),
         ]);
         if (cancelled) return;
-        setAttemptId(id);
         setLeaderboard(board);
         setUserRank(rank);
       } catch (err) {
         if (cancelled) return;
-        submittedRef.current = false;
+        resultsStartedRef.current = false;
         setSubmitError(err instanceof Error ? err.message : String(err));
       } finally {
         if (!cancelled) setResultsLoading(false);
@@ -1035,7 +1112,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     solvedRef.current = true;
     setSolved(true);
     setElapsedMs(elapsed);
-    localStorage.removeItem(progressKey(puzzle.id));
+    saveSolved(puzzle.id, snapped, startAtMs, lockedCells, elapsed);
 
     const key = `dct-crosswords:bestTime:${puzzle.id}`;
     const prevRaw = localStorage.getItem(key);
