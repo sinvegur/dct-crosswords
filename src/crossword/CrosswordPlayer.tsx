@@ -12,6 +12,7 @@ import {
 import { useIsMobile } from '@/lib/useIsMobile';
 
 const SOLVER_NAME_KEY = 'dct-crosswords:solverName';
+const TIMER_HIDDEN_KEY = 'dct-crosswords:timerHidden';
 
 // JS timers freeze in the background. iOS Safari often never reports the
 // page as hidden when you swipe to the home screen — it may fire pagehide
@@ -109,12 +110,16 @@ function SolverTimer({
   elapsedMs,
   pausedAt,
   onAway,
+  hidden,
+  onToggleHidden,
 }: {
   startAtMs: number;
   solved: boolean;
   elapsedMs: number | null;
   pausedAt: number | null;
   onAway: (gapMs: number) => void;
+  hidden: boolean;
+  onToggleHidden: () => void;
 }) {
   // Isolated so the once-a-second tick only re-renders this small display,
   // not the whole CrosswordPlayer (and its full cell grid) every second.
@@ -137,11 +142,42 @@ function SolverTimer({
   }, [startAtMs, solved, pausedAt, onAway]);
 
   const liveElapsedMs = solved ? elapsedMs : (pausedAt ?? now) - startAtMs;
+  const text = formatElapsedMs(liveElapsedMs ?? now - startAtMs);
 
+  // Finishing always reveals the time. Hiding it is about pressure while
+  // solving; the time you finished on is the part worth seeing.
+  if (solved) {
+    return (
+      <div className="solverTimer" aria-live="polite">
+        {text}
+      </div>
+    );
+  }
+
+  // The digits are the toggle. There is no room for a separate button in this
+  // row on mobile - Check is already down to an icon there - and reusing the
+  // digits costs no layout at either width.
   return (
-    <div className="solverTimer" aria-live="polite">
-      {formatElapsedMs(liveElapsedMs ?? now - startAtMs)}
-    </div>
+    <button
+      type="button"
+      className={`solverTimer solverTimerToggle ${hidden ? 'isHidden' : ''}`}
+      aria-pressed={hidden}
+      aria-label={hidden ? 'Show timer' : 'Hide timer'}
+      title={hidden ? 'Show timer' : 'Hide timer'}
+      onClick={onToggleHidden}
+    >
+      {/* The real digits always size the box, so hiding them cannot move
+          anything beside it - at any duration, at either font size. The
+          placeholder is laid over the top rather than swapped in. */}
+      <span className="solverTimerValue" aria-live="polite">
+        {text}
+      </span>
+      {hidden ? (
+        <span className="solverTimerMask" aria-hidden="true">
+          –:––
+        </span>
+      ) : null}
+    </button>
   );
 }
 
@@ -531,6 +567,13 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [resultsLoading, setResultsLoading] = useState(false);
 
+  const [timerHidden, setTimerHidden] = useState(() => {
+    try {
+      return localStorage.getItem(TIMER_HIDDEN_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
   const [bestTimeMs, setBestTimeMs] = useState<number | null>(null);
   const [showTurkishKeys, setShowTurkishKeys] = useState(false);
 
@@ -1123,6 +1166,18 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     }
   };
 
+  const toggleTimerHidden = () => {
+    setTimerHidden((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(TIMER_HIDDEN_KEY, next ? '1' : '0');
+      } catch {
+        /* Private browsing can refuse the write; the toggle still works for this session. */
+      }
+      return next;
+    });
+  };
+
   const runCheck = () => {
     if (solved) return;
     const nextLocked = new Set(lockedCells);
@@ -1400,6 +1455,8 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
               elapsedMs={elapsedMs}
               pausedAt={pausedAt}
               onAway={onAway}
+              hidden={timerHidden}
+              onToggleHidden={toggleTimerHidden}
             />
             {!solved ? (
               isMobile ? (
