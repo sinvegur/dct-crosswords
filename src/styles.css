@@ -801,6 +801,14 @@ textarea {
   padding: 12px 14px 8px;
 }
 
+.resultsMoreLink {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: inherit;
+}
+
 .resultsViewSwitch {
   display: flex;
   width: 100%;

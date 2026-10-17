@@ -81,6 +81,18 @@ export async function listPuzzles(): Promise<Puzzle[]> {
   return (data as PuzzleRow[] | null)?.map(rowToPuzzle) ?? [];
 }
 
+/** Published puzzles only, for the public /puzzles page - signed in or not. */
+export async function listPublishedPuzzles(): Promise<Puzzle[]> {
+  const { data, error } = await supabase
+    .from('puzzles')
+    .select('id, slug, title, solution_grid, clues, status, created_at')
+    .eq('status', 'published')
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return (data as PuzzleRow[] | null)?.map(rowToPuzzle) ?? [];
+}
+
 export async function getPuzzle(id: string): Promise<Puzzle | undefined> {
   const { data, error } = await supabase
     .from('puzzles')

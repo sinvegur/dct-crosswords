@@ -28,6 +28,7 @@ import {
   deletePuzzle,
   getPuzzle,
   getPuzzleBySlug,
+  listPublishedPuzzles,
   listPuzzles,
   savePuzzle,
   setPuzzleStatus,
@@ -62,6 +63,14 @@ function formatHumanPuzzleListDate(iso: string, status: Puzzle['status']): strin
   }
 
   return status === 'published' ? `Published on ${formatted}` : `Created on ${formatted}`;
+}
+
+function formatPublicPuzzleDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  });
 }
 
 function AppShell() {
@@ -109,6 +118,10 @@ function AppShell() {
 
   const isHome = location.pathname === '/';
   const isSolverRoute = location.pathname.startsWith('/p/');
+  // Public pages get a plain logo rather than the home button. /puzzles also
+  // drops the creator nav, so a signed-in creator sees what solvers see.
+  const isPuzzlesListRoute = location.pathname === '/puzzles';
+  const isPublicRoute = isSolverRoute || isPuzzlesListRoute;
   const isNewDesign =
     location.pathname === '/design' || (gridModalOpen && !location.pathname.startsWith('/design/'));
 
@@ -152,7 +165,7 @@ function AppShell() {
   return (
     <div className="page">
       <div className={`header ${isSolverRoute ? 'headerSolverRoute' : ''}`}>
-        {isSolverRoute ? (
+        {isPublicRoute ? (
           <img
             className="logoImg"
             src="/dct_crosswords_transparent.png"
@@ -168,7 +181,7 @@ function AppShell() {
           </button>
         )}
         <div className="nav">
-          {session ? (
+          {session && !isPuzzlesListRoute ? (
             <>
               <button
                 type="button"
@@ -244,6 +257,7 @@ function AppShell() {
             </RequireAuth>
           }
         />
+        <Route path="/puzzles" element={<PublicPuzzlesPage />} />
         <Route path="/p/:slug" element={<PlayPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
@@ -610,6 +624,95 @@ function DesignEditPage({
       onCancel={onCancel}
       onSaved={onSaved}
     />
+  );
+}
+
+function PublicPuzzlesPage() {
+  const navigate = useNavigate();
+  const [puzzles, setPuzzles] = useState<Puzzle[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [leaderboardTarget, setLeaderboardTarget] = useState<Puzzle | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    listPublishedPuzzles()
+      .then((next) => {
+        if (!cancelled) setPuzzles(next);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(errorMessage(err));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <div className="panel">
+      <div className="panelHeader">Puzzles</div>
+      {loading ? (
+        <div className="emptyState">
+          <p className="subtle">Loading puzzles…</p>
+        </div>
+      ) : error ? (
+        <div className="emptyState">
+          <p className="loginError">{error}</p>
+        </div>
+      ) : puzzles.length === 0 ? (
+        <div className="emptyState">
+          <p className="subtle">No puzzles yet.</p>
+        </div>
+      ) : (
+        <ul className="puzzleList">
+          {puzzles.map((p) => (
+            <li key={p.id} className="puzzleRow">
+              <div>
+                <button
+                  type="button"
+                  className="puzzleTitle"
+                  onClick={() => navigate(`/p/${p.slug}`)}
+                >
+                  {p.title}
+                </button>
+                {p.meta?.createdAtISO ? (
+                  <div className="subtle">{formatPublicPuzzleDate(p.meta.createdAtISO)}</div>
+                ) : null}
+              </div>
+              <div className="puzzleActions">
+                <button
+                  type="button"
+                  className="toolbarControl"
+                  aria-label="Play"
+                  title="Play"
+                  onClick={() => navigate(`/p/${p.slug}`)}
+                >
+                  <Play size={ROW_ACTION_ICON_SIZE} aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  className="toolbarControl"
+                  aria-label="Leaderboard"
+                  title="Leaderboard"
+                  onClick={() => setLeaderboardTarget(p)}
+                >
+                  <Trophy size={ROW_ACTION_ICON_SIZE} aria-hidden />
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <PuzzleLeaderboardModal
+        open={leaderboardTarget != null}
+        puzzle={leaderboardTarget}
+        onClose={() => setLeaderboardTarget(null)}
+      />
+    </div>
   );
 }
 
