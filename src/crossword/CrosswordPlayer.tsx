@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { CheckCheck, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import type { Puzzle } from './types';
 import { findClueLinkGroup, sanitizeClueLinks } from './types';
 import { type Direction, type Entry, computeEntries } from './engine';
@@ -1510,6 +1511,9 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
                   <> · Your best: <strong>{formatElapsedMs(bestTimeMs)}</strong></>
                 ) : null}
               </div>
+              <Link className="resultsMoreLink" to="/puzzles">
+                All puzzles →
+              </Link>
               <div className="resultsViewSwitch" role="group" aria-label="Results view">
                 <button
                   type="button"
