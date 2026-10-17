@@ -292,6 +292,11 @@ textarea {
   text-align: center;
 }
 
+.controlsRowLogoLink {
+  display: block;
+  flex-shrink: 0;
+}
+
 .controlsRowLogo {
   height: 22px;
   width: auto;
