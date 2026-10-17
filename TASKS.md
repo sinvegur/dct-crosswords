@@ -1,20 +1,20 @@
-# Cursor Tasks
+# Tasks
 
-Task queue for handing work from Claude (planning/review) to Cursor (implementation) on dct-crosswords.
+Task queue for dct-crosswords. Claude implements directly (Cursor was dropped on 2026-10-17).
 
 ## Protocol
 
-- **Cursor**: when told "new task for you, check TASKS.md", find the topmost entry marked `[TODO]`. Implement only that task — don't start a second `[TODO]` in the same pass. When finished, change its status to `[READY FOR REVIEW]` and add a short "Implementation notes" line under it if anything deviated from the instructions.
-- **Claude**: reviews `[READY FOR REVIEW]` entries against the actual diff. Marks `[DONE]`, **commits immediately** (one task = one commit, task ID in the subject line), and deletes the entry (git history keeps the record — no need to accumulate finished tasks here). Or marks `[CHANGES REQUESTED]` and appends specific notes for Cursor to address, leaving status as `[CHANGES REQUESTED]` until fixed.
+- Work the topmost `[TODO]` entry. One task = one branch = one PR, with the task ID in the commit subject.
+- The PR that completes a task also deletes its entry here — git history keeps the record.
+- A task is done when its PR is merged to `main`, not when the branch exists. Check with `gh pr list` / `git merge-base --is-ancestor` rather than trusting this file.
 - IDs are sequential (T001, T002, ...) and never reused, even if a task is deleted.
-- Only one task should be active (`[TODO]` at the top) at a time, to keep diffs small and reviewable.
-- **Only make the changes the task explicitly describes.** If you notice something else worth fixing while working, do NOT implement it — note it in "Implementation notes" as a suggestion and let Claude turn it into its own task. This has been raised twice already (T001 favicon/port, T002 layout rework) — a third occurrence means diffs will be rejected without detailed review.
+- Only make the changes the task describes. Anything else worth fixing becomes its own task.
 
 ---
 
 ## T046 — [BLOCKED, pending user confirmation] Mobile letter-clipping bug — likely fixed, awaiting real-device check
 
-**Not a Cursor task right now — do not pick this up.** Claude handled this directly (real-device-only bug, needed live iteration). Leaving a short record here rather than deleting, in case it resurfaces.
+**Waiting on a real-device check — do not pick this up.** Claude handled this directly (real-device-only bug, needed live iteration). Leaving a short record here rather than deleting, in case it resurfaces.
 
 After the diagnostic notes originally left here, the investigation continued directly (not via Cursor) through several more rounds. Two things turned out to matter beyond what's listed below:
 - The bug also affects 9x9 (midi), not just 15x15 — just proportionally less severe. That reframed it from "something about 15x15's specific cell size" to "a roughly fixed amount of space being eaten in every cell regardless of size."
@@ -23,26 +23,3 @@ After the diagnostic notes originally left here, the investigation continued dir
 **Status: fix shipped, not yet confirmed on the user's actual device** ("will check later"). If it comes back after confirmation, or a new report references this, read the full commit history on `src/styles.css` and `src/crossword/CrosswordPlayer.tsx` from today (2026-08-25) before re-diagnosing — a lot of ground was already covered.
 
 ---
-
-## T059 — [TODO] Builder grid is not square, so every cell overflows its row
-
-Found while adding circled letters, and worth fixing on its own.
-
-In the builder the grid box comes out non-square at some window sizes. The cells keep `aspect-ratio: 1 / 1`, so each one stays square while its grid *row* is shorter — every cell overflows its row by a few pixels and the row below paints over its bottom edge.
-
-It is invisible with letters alone, because they are centred and small. Anything that reaches the edge of a square shows it: the circled-letter ring had its bottom arc clipped, which is what surfaced this. The circle's inset was widened from 7% to 12% to buy clearance — that is a workaround sitting on top of this bug, and it can be reverted once the grid is square.
-
-Reproduce: open the builder, then in the console
-
-```js
-const g = document.querySelector('.designerGridPanel .grid'), c = g.querySelector('.cell');
-console.log({ grid: [g.getBoundingClientRect().width, g.getBoundingClientRect().height],
-              cell: [c.getBoundingClientRect().width, c.getBoundingClientRect().height],
-              rowHeight: g.getBoundingClientRect().height / 15 });
-```
-
-A non-square `grid`, or a `cell` height larger than `rowHeight`, is the bug.
-
-The sizing lives in `.designerGridPanel .grid` (`width`/`height: calc(100cqmin - 24px)` with `max-width`/`max-height: 100%`) plus the base `.grid` rule's own `aspect-ratio: 1 / 1`. The clamps and the explicit height can disagree; the solver's equivalent rule is worth comparing against, since the solver does not show the problem.
-
-Check at several window sizes and both grid sizes (15x15 and 5x5), and confirm the circle still sits inside its square afterwards.
