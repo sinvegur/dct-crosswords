@@ -566,6 +566,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
   const attemptIdRef = useRef<string | null>(attemptId);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [resultsLoading, setResultsLoading] = useState(false);
+  const youRowRef = useRef<HTMLLIElement | null>(null);
 
   const [timerHidden, setTimerHidden] = useState(() => {
     try {
@@ -793,7 +794,9 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
           }
         }
         const [board, rank] = await Promise.all([
-          getLeaderboard(puzzle.id),
+          // The whole board, not a top 10: a solver who finishes 12th should
+          // see their own row and the people around them, not just a rank.
+          getLeaderboard(puzzle.id, 200),
           getAttemptRank(puzzle.id, elapsedMs),
         ]);
         if (cancelled) return;
@@ -1350,6 +1353,25 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
     },
   );
 
+  // With a long board the solver's own row can sit well below the fold, so
+  // centre it once the results land. On desktop only the board scrolls -
+  // scrollIntoView would also scroll the panel, taking the "Solved!" header
+  // with it. On mobile the board grows with its rows rather than scrolling,
+  // so the page scrolls instead and the header goes off the top.
+  useEffect(() => {
+    if (resultsLoading || resultsView !== 'leaderboard') return;
+    const row = youRowRef.current;
+    const board = row?.closest<HTMLElement>('.solverResults');
+    if (!row || !board) return;
+    if (board.scrollHeight <= board.clientHeight) {
+      row.scrollIntoView({ block: 'center' });
+      return;
+    }
+    const rowBox = row.getBoundingClientRect();
+    const boardBox = board.getBoundingClientRect();
+    board.scrollTop += rowBox.top - boardBox.top - (boardBox.height - rowBox.height) / 2;
+  }, [resultsLoading, resultsView, leaderboard, attemptId]);
+
   const userOnLeaderboard = attemptId != null && leaderboard.some((e) => e.id === attemptId);
   const showRankOutsideTop =
     userRank != null && leaderboard.length > 0 && !userOnLeaderboard;
@@ -1531,6 +1553,7 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
                       return (
                         <li
                           key={entry.id}
+                          ref={isYou ? youRowRef : undefined}
                           className={`leaderboardRow ${isYou ? 'leaderboardRowYou' : ''}`}
                         >
                           <span className="leaderboardRank">{index + 1}</span>

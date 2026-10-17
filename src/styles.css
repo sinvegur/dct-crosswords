@@ -787,6 +787,11 @@ textarea {
 
 .solverResults {
   padding-bottom: 8px;
+  /* The board scrolls on its own so the "Solved!" header and the view switch
+     stay put while a long leaderboard is scrolled to the solver's row. */
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .solverResultsHeader {
@@ -1058,12 +1063,6 @@ textarea {
   .solverKeyWide {
     max-width: 50px;
     font-size: 13px;
-  }
-
-  .solverResults {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
   }
 }
 
