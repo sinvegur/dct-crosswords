@@ -1451,11 +1451,13 @@ export function CrosswordPlayer({ puzzle, solverName }: Props) {
             </div>
           ) : (
             <>
-              <img
-                src="/dct_crosswords_transparent.png"
-                alt="DCT Crosswords"
-                className="controlsRowLogo"
-              />
+              <Link className="controlsRowLogoLink" to="/puzzles" aria-label="All puzzles">
+                <img
+                  src="/dct_crosswords_transparent.png"
+                  alt="DCT Crosswords"
+                  className="controlsRowLogo"
+                />
+              </Link>
               <div className="title controlsRowCompactTitle" style={{ fontSize: 16 }}>
                 {puzzle.title}
               </div>

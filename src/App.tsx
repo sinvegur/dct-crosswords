@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Check, EyeOff, Link2, PencilLine, Play, Trash2, Trophy } from 'lucide-react';
 import {
   BrowserRouter,
+  Link,
   Navigate,
   Route,
   Routes,
@@ -166,11 +167,13 @@ function AppShell() {
     <div className="page">
       <div className={`header ${isSolverRoute ? 'headerSolverRoute' : ''}`}>
         {isPublicRoute ? (
-          <img
-            className="logoImg"
-            src="/dct_crosswords_transparent.png"
-            alt="DCT Crosswords"
-          />
+          <Link className="logoButton" to="/puzzles" aria-label="All puzzles">
+            <img
+              className="logoImg"
+              src="/dct_crosswords_transparent.png"
+              alt="DCT Crosswords"
+            />
+          </Link>
         ) : (
           <button type="button" className="logoButton" onClick={goHome} aria-label="Home">
             <img
